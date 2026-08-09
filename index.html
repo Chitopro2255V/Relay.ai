@@ -1154,15 +1154,27 @@ async function streamText(element, text) {
 }
 
 async function sendToChatbot(message) {
-  if (CHATBOT_CONFIG.apiEndpoint && CHATBOT_CONFIG.apiKey) {
+  if (CHATBOT_CONFIG.apiEndpoint) {
     try {
       const body = {
         model: CHATBOT_CONFIG.model,
-        messages: [{ role: 'system', content: CHATBOT_CONFIG.systemPrompt }, ...chatHistory.slice(-MAX_HISTORY).map(m => ({ role: m.role, content: m.content })), { role: 'user', content: message }],
+        messages: [
+          { role: 'system', content: CHATBOT_CONFIG.systemPrompt }, 
+          ...chatHistory.slice(-MAX_HISTORY).map(m => ({ role: m.role, content: m.content })), 
+          { role: 'user', content: message }
+        ],
         max_tokens: CHATBOT_CONFIG.maxTokens,
         temperature: CHATBOT_CONFIG.temperature
       };
-      const res = await fetch(CHATBOT_CONFIG.apiEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CHATBOT_CONFIG.apiKey}` }, body: JSON.stringify(body) });
+
+      const res = await fetch(CHATBOT_CONFIG.apiEndpoint, { 
+        method: 'POST', 
+        headers: { 
+          'Content-Type': 'application/json' 
+        }, 
+        body: JSON.stringify(body) 
+      });
+
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       if (data.choices && data.choices[0]) return data.choices[0].message.content;
