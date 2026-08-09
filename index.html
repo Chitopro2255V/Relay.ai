@@ -1,0 +1,1624 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Relay — Conversational Agent Infrastructure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800;900&display=swap'>
+<style>
+:root {
+  --bg: #0a0a0a;
+  --bg-card: #0f0f0f;
+  --bg-elev: #141414;
+  --bg-hover: #181818;
+  --text: #ffffff;
+  --text-soft: #dadada;
+  --text-mute: rgba(255,255,255,0.5);
+  --text-dim: rgba(255,255,255,0.3);
+  --accent: rgba(200,170,130,1);
+  --accent-soft: rgba(200,170,130,0.25);
+  --accent-bright: rgba(230,200,150,1);
+  --accent-glow: rgba(200,170,130,0.08);
+  --line: rgba(255,255,255,0.10);
+  --line-soft: rgba(255,255,255,0.06);
+  --line-strong: rgba(255,255,255,0.18);
+  --success: #7ea896;
+  --error: #c47a7a;
+  --ease-quiet: cubic-bezier(.22, 1, .36, 1);
+  --ease-precise: cubic-bezier(.4, 0, .2, 1);
+  --ease-emphasis: cubic-bezier(.16, 1, .3, 1);
+}
+[data-theme="light"] {
+  --bg: #f5f3ef;
+  --bg-card: #ffffff;
+  --bg-elev: #efede8;
+  --bg-hover: #e8e6e0;
+  --text: #0a0a0a;
+  --text-soft: #333333;
+  --text-mute: rgba(0,0,0,0.5);
+  --text-dim: rgba(0,0,0,0.3);
+  --accent: rgba(160,120,60,1);
+  --accent-soft: rgba(160,120,60,0.18);
+  --accent-bright: rgba(180,140,80,1);
+  --accent-glow: rgba(160,120,60,0.06);
+  --line: rgba(0,0,0,0.10);
+  --line-soft: rgba(0,0,0,0.05);
+  --line-strong: rgba(0,0,0,0.18);
+  --success: #5a8a6e;
+  --error: #b06060;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 400ms var(--ease-quiet), color 400ms var(--ease-quiet);
+}
+body.cursor-active, body.cursor-active a, body.cursor-active button,
+body.cursor-active input, body.cursor-active textarea, body.cursor-active label {
+  cursor: none !important;
+}
+::selection { background: var(--accent-soft); color: var(--text); }
+a { color: inherit; text-decoration: none; }
+button { cursor: pointer; font-family: inherit; border: none; background: none; color: inherit; }
+input, textarea { font-family: inherit; }
+
+#cursor {
+  position: fixed; top: 0; left: 0; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--accent);
+  border: 2px solid var(--bg);
+  pointer-events: none; z-index: 99999; will-change: transform;
+  opacity: 0; transition: opacity 200ms var(--ease-quiet), transform 0s;
+  left: 0px;
+}
+#cursor.visible { opacity: 1; }
+@media (hover: none), (pointer: coarse) { #cursor { display: none !important; } }
+
+.view { display: none; }
+.view.active { display: block; animation: viewFade 0.5s var(--ease-quiet); }
+@keyframes viewFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.label { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 400; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-mute); }
+.h-hero { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: clamp(2.2rem, 6vw, 5rem); letter-spacing: -0.04em; line-height: 0.98; color: var(--text); }
+.h-section { font-family: 'Inter', sans-serif; font-weight: 800; font-size: clamp(1.6rem, 4vw, 3rem); letter-spacing: -0.025em; line-height: 1.05; color: var(--text); }
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* NAV */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  padding: 1rem 1.5rem; display: flex; align-items: center; justify-content: space-between;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid var(--line-soft);
+}
+.nav-logo { display: flex; align-items: center; gap: 0.6rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 14px; cursor: pointer; }
+.nav-logo-mark { width: 22px; height: 22px; border: 1.5px solid var(--accent); border-radius: 50%; position: relative; }
+.nav-logo-mark::before { content: ''; position: absolute; inset: 4px; background: var(--accent); border-radius: 50%; }
+.nav-links { display: flex; gap: 1.75rem; align-items: center; }
+.nav-links a { font-size: 13px; color: var(--text-soft); transition: color 200ms var(--ease-quiet); position: relative; }
+.nav-links a:hover { color: var(--text); }
+.nav-links a::after { content: ''; position: absolute; left: 0; bottom: -4px; width: 0; height: 1px; background: var(--accent); transition: width 300ms var(--ease-quiet); }
+.nav-links a:hover::after { width: 100%; }
+.nav-right { display: flex; gap: 0.6rem; align-items: center; }
+.nav-status { display: flex; align-items: center; gap: 0.5rem; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mute); padding-right: 1rem; border-right: 1px solid var(--line); }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent); }
+.theme-toggle, .nav-menu-btn { width: 36px; height: 36px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; transition: border-color 200ms var(--ease-quiet), background 200ms var(--ease-quiet); }
+.theme-toggle:hover, .nav-menu-btn:hover { border-color: var(--accent); background: var(--accent-glow); }
+.theme-toggle svg, .nav-menu-btn svg { width: 16px; height: 16px; }
+
+.btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.1rem; font-size: 13px; font-weight: 500; border: 1px solid var(--line); transition: all 280ms var(--ease-quiet); font-family: 'Inter', sans-serif; border-radius: 0; position: relative; }
+.btn:hover { border-color: var(--text-soft); }
+.btn-primary { background: var(--accent); color: #0a0a0a; border-color: var(--accent); font-weight: 600; }
+.btn-primary:hover { background: var(--accent-bright); border-color: var(--accent-bright); }
+.btn-ghost { border-color: transparent; color: var(--text-soft); }
+.btn-ghost:hover { color: var(--text); border-color: var(--line); }
+.btn-sm { padding: 0.45rem 0.85rem; font-size: 12px; }
+.btn-block { width: 100%; justify-content: center; }
+.magnetic { transition: transform 0.2s var(--ease-quiet); }
+
+.mobile-menu { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 99; background: var(--bg); padding: 5rem 1.5rem 2rem; display: none; flex-direction: column; gap: 1rem; }
+.mobile-menu.open { display: flex; }
+.mobile-menu a { font-size: 1.25rem; font-weight: 600; padding: 0.75rem 0; border-bottom: 1px solid var(--line-soft); }
+.mobile-menu-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+.mobile-menu-actions .btn { flex: 1; justify-content: center; }
+
+/* HERO */
+.hero { min-height: 100vh; padding: 8rem 1.5rem 4rem; position: relative; display: grid; grid-template-columns: 1.1fr 1fr; gap: 3rem; align-items: center; max-width: 1500px; margin: 0 auto; }
+.hero::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle, var(--line-soft) 1px, transparent 1px); background-size: 32px 32px; pointer-events: none; opacity: 0.5; }
+.hero-left { position: relative; z-index: 2; }
+.hero-meta { display: flex; gap: 1.5rem; align-items: center; margin-bottom: 2rem; }
+.hero-meta-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-glow); animation: pulse 2.4s var(--ease-quiet) infinite; }
+@keyframes pulse { 0%, 100% { opacity: 0.4; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+#hero-title { margin-bottom: 1.5rem; }
+.hero-sub { font-size: 1.05rem; color: var(--text-soft); line-height: 1.6; max-width: 48ch; margin-bottom: 2rem; }
+.hero-actions { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 3rem; flex-wrap: wrap; }
+.hero-stats { display: flex; gap: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--line-soft); flex-wrap: wrap; }
+.hero-stat-num { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.5rem; color: var(--text); letter-spacing: -0.02em; }
+.hero-stat-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mute); letter-spacing: 0.18em; text-transform: uppercase; margin-top: 0.25rem; }
+
+/* CHAT WIDGET */
+.chat-widget { background: var(--bg-card); border: 1px solid var(--line); display: flex; flex-direction: column; height: 560px; max-height: 75vh; position: relative; z-index: 2; box-shadow: 0 30px 80px -20px rgba(0,0,0,0.5); }
+.chat-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line-soft); display: flex; justify-content: space-between; align-items: center; }
+.chat-agent { display: flex; align-items: center; gap: 0.75rem; }
+.chat-agent-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #0a0a0a; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 13px; }
+.chat-agent-info { display: flex; flex-direction: column; gap: 2px; }
+.chat-agent-name { font-size: 13px; font-weight: 600; }
+.chat-agent-status { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--success); letter-spacing: 0.1em; text-transform: uppercase; display: flex; align-items: center; gap: 5px; }
+.chat-agent-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--success); }
+.chat-body { flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.85rem; }
+.chat-body::-webkit-scrollbar { width: 4px; }
+.chat-body::-webkit-scrollbar-thumb { background: var(--line); }
+.msg { display: flex; gap: 0.6rem; max-width: 88%; animation: slideUp 0.4s var(--ease-quiet) both; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.msg-avatar { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; background: var(--bg-elev); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mute); }
+.msg.bot .msg-avatar { background: var(--accent); color: #0a0a0a; border-color: var(--accent); }
+.msg-bubble { padding: 0.65rem 0.9rem; font-size: 13px; line-height: 1.5; background: var(--bg-elev); border: 1px solid var(--line-soft); border-radius: 4px 4px 4px 1px; word-break: break-word; }
+.msg.user .msg-bubble { background: var(--accent); color: #0a0a0a; border-color: var(--accent); border-radius: 4px 4px 1px 4px; font-weight: 500; }
+.msg-bubble strong { font-weight: 700; }
+.msg-bubble code { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 2px; }
+.msg.thinking .msg-bubble { display: flex; gap: 4px; align-items: center; padding: 0.8rem 0.9rem; }
+.thinking-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-mute); animation: thinking 1.4s var(--ease-quiet) infinite; }
+.thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes thinking { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+.chat-suggestions { display: flex; gap: 0.5rem; padding: 0.75rem 1.25rem; flex-wrap: wrap; border-top: 1px solid var(--line-soft); }
+.chat-suggestion { font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 0.4rem 0.7rem; border: 1px solid var(--line); color: var(--text-soft); transition: all 200ms var(--ease-quiet); }
+.chat-suggestion:hover { border-color: var(--accent); color: var(--accent); }
+.chat-input { padding: 0.9rem 1.25rem; border-top: 1px solid var(--line-soft); display: flex; gap: 0.75rem; align-items: center; }
+.chat-input input { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-size: 13px; }
+.chat-input input::placeholder { color: var(--text-mute); }
+.chat-input button { color: var(--text-mute); transition: color 0.2s; }
+.chat-input button:hover { color: var(--accent); }
+.chat-send { width: 32px; height: 32px; background: var(--accent); color: #0a0a0a; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: background 200ms var(--ease-quiet); }
+.chat-send:hover { background: var(--accent-bright); }
+.voice-btn.recording { color: var(--error); animation: pulse 1s infinite; }
+
+/* SECTIONS */
+.section-pad { padding: 6rem 1.5rem; max-width: 1500px; margin: 0 auto; }
+.section-head { margin-bottom: 4rem; }
+.section-head .label { margin-bottom: 1.25rem; display: inline-block; }
+.section-head-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: end; }
+
+.capabilities { border-top: 1px solid var(--line-soft); }
+.sticky-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: start; }
+.sticky-pair .left { position: sticky; top: 88px; padding-right: 1rem; }
+.sticky-pair .left .label { margin-bottom: 1.25rem; }
+.sticky-pair .left h2 { margin-bottom: 1.25rem; }
+.sticky-pair .left p { color: var(--text-soft); font-size: 1rem; line-height: 1.65; max-width: 44ch; }
+.cap-list { display: flex; flex-direction: column; }
+.cap-row { padding: 2rem 0; border-bottom: 1px solid var(--line-soft); position: relative; display: grid; grid-template-columns: 50px 1fr; gap: 1.5rem; align-items: start; }
+.cap-row:first-child { border-top: 1px solid var(--line-soft); }
+.cap-row::before { content: ''; position: absolute; left: -1rem; top: 0; width: 2px; height: 0; background: var(--accent); transition: height 600ms var(--ease-quiet); }
+.cap-row:hover::before { height: 100%; }
+.cap-row:hover .cap-title { color: var(--accent); }
+.cap-num { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mute); letter-spacing: 0.1em; }
+.cap-title { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 1.2rem; letter-spacing: -0.015em; transition: color 600ms var(--ease-quiet); margin-bottom: 0.5rem; }
+.cap-desc { font-size: 0.92rem; color: var(--text-soft); line-height: 1.55; opacity: 0.65; transition: opacity 600ms var(--ease-quiet); }
+.cap-row:hover .cap-desc { opacity: 1; }
+
+/* PRICING */
+.pricing { border-top: 1px solid var(--line-soft); }
+.pricing-toggle { display: inline-flex; align-items: center; margin-bottom: 2.5rem; border: 1px solid var(--line); }
+.pricing-toggle button { padding: 0.55rem 1.1rem; font-size: 12px; color: var(--text-mute); font-family: 'JetBrains Mono', monospace; letter-spacing: 0.1em; text-transform: uppercase; transition: all 200ms var(--ease-quiet); }
+.pricing-toggle button.active { background: var(--accent); color: #0a0a0a; }
+.pricing-toggle .save-badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 0.15rem 0.35rem; background: var(--accent-soft); color: var(--accent); margin-left: 0.4rem; }
+.pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; }
+.price-card { padding: 2rem 1.75rem; border: 1px solid var(--line); background: var(--bg-card); position: relative; transition: border-color 400ms var(--ease-quiet), transform 400ms var(--ease-quiet); display: flex; flex-direction: column; }
+.price-card:hover { border-color: var(--line-strong); transform: translateY(-4px); }
+.price-card.featured { border-color: var(--accent); }
+.price-card.featured::before { content: 'RECOMMENDED'; position: absolute; top: -1px; right: 1.25rem; background: var(--accent); color: #0a0a0a; font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 0.3rem 0.55rem; letter-spacing: 0.1em; font-weight: 700; }
+.price-tier { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 0.5rem; }
+.price-name { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.5rem; letter-spacing: -0.025em; margin-bottom: 1.25rem; }
+.price-amount { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 2.25rem; letter-spacing: -0.04em; line-height: 1; margin-bottom: 0.4rem; }
+.price-period { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mute); letter-spacing: 0.1em; margin-bottom: 1.5rem; }
+.price-desc { font-size: 0.88rem; color: var(--text-soft); line-height: 1.55; padding: 1.25rem 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); margin-bottom: 1.25rem; }
+.price-features { list-style: none; flex: 1; margin-bottom: 1.5rem; }
+.price-features li { font-size: 0.88rem; color: var(--text-soft); padding: 0.4rem 0; display: flex; gap: 0.65rem; align-items: start; }
+.price-features li::before { content: '+'; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 700; flex-shrink: 0; }
+.price-features li.disabled { color: var(--text-dim); }
+.price-features li.disabled::before { content: '·'; color: var(--text-dim); }
+
+/* AUTH VIEW */
+.auth-view { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }
+.auth-visual { position: relative; padding: 3rem; overflow: hidden; background: var(--bg-card); border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; justify-content: space-between; }
+.auth-visual::before { content: ''; position: absolute; inset: 0; background-image: radial-gradient(circle, var(--accent-glow) 1px, transparent 1px); background-size: 24px 24px; }
+#authCanvas, #authCanvas2 { position: absolute; inset: 0; width: 100%; height: 100%; }
+.auth-visual-content { position: relative; z-index: 2; }
+.auth-visual-content .label { margin-bottom: 1rem; }
+.auth-visual-content h3 { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.75rem; letter-spacing: -0.025em; line-height: 1.1; max-width: 20ch; margin-bottom: 1.5rem; }
+.auth-visual-content p { color: var(--text-soft); font-size: 0.95rem; max-width: 36ch; line-height: 1.6; }
+.auth-visual-foot { position: relative; z-index: 2; display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mute); letter-spacing: 0.1em; text-transform: uppercase; }
+.auth-form-side { display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; position: relative; }
+.auth-form-wrap { width: 100%; max-width: 400px; }
+.auth-back { display: inline-flex; align-items: center; gap: 0.4rem; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mute); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2rem; transition: color 200ms var(--ease-quiet); cursor: pointer; }
+.auth-back:hover { color: var(--accent); }
+.auth-form-head { margin-bottom: 2rem; }
+.auth-form-head .label { margin-bottom: 0.75rem; }
+.auth-form-head h2 { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.75rem; letter-spacing: -0.025em; margin-bottom: 0.5rem; }
+.auth-form-head p { font-size: 0.9rem; color: var(--text-soft); }
+
+.auth-steps { display: flex; gap: 0; margin-bottom: 2rem; }
+.auth-step { flex: 1; padding: 0.5rem 0 0.5rem 0; border-bottom: 2px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); position: relative; transition: all 300ms var(--ease-quiet); }
+.auth-step.active { color: var(--accent); border-bottom-color: var(--accent); }
+.auth-step.done { color: var(--text-soft); border-bottom-color: var(--text-soft); }
+
+.auth-field { margin-bottom: 1.1rem; position: relative; }
+.auth-field label { display: block; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-mute); margin-bottom: 0.4rem; }
+.auth-field input { width: 100%; padding: 0.7rem 0; background: transparent; border: none; border-bottom: 1px solid var(--line); color: var(--text); font-size: 14px; outline: none; transition: border-color 200ms var(--ease-quiet); }
+.auth-field input:focus { border-bottom-color: var(--accent); }
+.auth-field.valid input { border-bottom-color: var(--success); }
+.auth-field-error { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--error); margin-top: 0.3rem; display: none; }
+.auth-field.error .auth-field-error { display: block; }
+.auth-field.error input { border-bottom-color: var(--error); }
+
+.pass-strength { height: 4px; background: var(--line-soft); margin-top: 0.5rem; display: flex; gap: 2px; }
+.pass-strength span { flex: 1; background: transparent; transition: background 0.3s; }
+.pass-strength.weak span:nth-child(1) { background: var(--error); }
+.pass-strength.medium span:nth-child(1), .pass-strength.medium span:nth-child(2) { background: var(--accent); }
+.pass-strength.strong span { background: var(--success); }
+
+.auth-options { display: flex; justify-content: space-between; align-items: center; margin: 1.25rem 0; font-size: 12px; }
+.auth-checkbox { display: flex; align-items: center; gap: 0.5rem; color: var(--text-soft); cursor: pointer; }
+.auth-checkbox input { width: 14px; height: 14px; accent-color: var(--accent); }
+.auth-magic { color: var(--accent); font-size: 12px; transition: opacity 200ms var(--ease-quiet); cursor: pointer; }
+.auth-magic:hover { opacity: 0.7; }
+.auth-error-banner { background: color-mix(in srgb, var(--error) 15%, transparent); border-left: 2px solid var(--error); padding: 0.75rem 1rem; font-size: 12px; color: var(--text-soft); margin-bottom: 1.25rem; display: none; }
+.auth-error-banner.show { display: block; }
+.auth-divider { display: flex; align-items: center; gap: 1rem; margin: 1.25rem 0; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.15em; text-transform: uppercase; }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.auth-sso { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+.auth-sso-btn { padding: 0.65rem; border: 1px solid var(--line); font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 0.4rem; color: var(--text-soft); transition: all 200ms var(--ease-quiet); cursor: pointer; }
+.auth-sso-btn:hover { border-color: var(--accent); color: var(--accent); }
+.auth-switch { text-align: center; margin-top: 1.5rem; font-size: 13px; color: var(--text-mute); }
+.auth-switch a { color: var(--accent); font-weight: 500; cursor: pointer; }
+
+/* DASHBOARD APP */
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: 240px 1fr; padding-top: 0; }
+.app-sidebar { border-right: 1px solid var(--line-soft); background: var(--bg-card); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.app-sidebar-head { padding: 1.25rem; border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; justify-content: space-between; }
+.app-workspace { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line-soft); }
+.app-workspace-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mute); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.35rem; }
+.app-workspace-name { font-weight: 600; font-size: 14px; }
+.app-nav { padding: 0.75rem 0.5rem; flex: 1; }
+.app-nav-section { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-dim); letter-spacing: 0.2em; text-transform: uppercase; padding: 0.75rem 0.75rem 0.4rem; }
+.app-nav-item { display: flex; align-items: center; gap: 0.65rem; padding: 0.5rem 0.75rem; font-size: 13px; color: var(--text-soft); transition: all 200ms var(--ease-quiet); border-left: 2px solid transparent; margin-left: -1px; border-radius: 0; cursor: pointer; }
+.app-nav-item:hover { color: var(--text); background: var(--bg-hover); }
+.app-nav-item.active { color: var(--text); border-left-color: var(--accent); background: var(--bg-hover); }
+.app-nav-item svg { width: 15px; height: 15px; opacity: 0.7; flex-shrink: 0; }
+.app-nav-item.active svg { opacity: 1; color: var(--accent); }
+.app-nav-badge { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 0.1rem 0.4rem; background: var(--accent-soft); color: var(--accent); }
+.app-sidebar-foot { padding: 1rem 1.25rem; border-top: 1px solid var(--line-soft); display: flex; align-items: center; gap: 0.75rem; }
+.app-user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #0a0a0a; display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 12px; flex-shrink: 0; }
+.app-user-info { flex: 1; min-width: 0; }
+.app-user-email { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-user-role { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-mute); letter-spacing: 0.1em; text-transform: uppercase; }
+.app-logout { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; color: var(--text-mute); transition: color 200ms var(--ease-quiet); cursor: pointer; }
+.app-logout:hover { color: var(--error); }
+.app-logout svg { width: 14px; height: 14px; }
+
+.app-main { padding: 2rem; overflow-x: hidden; background: var(--bg); background-image: radial-gradient(circle, var(--line-soft) 1px, transparent 1px); background-size: 24px 24px; }
+.app-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--line-soft); }
+.app-topbar h1 { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.5rem; letter-spacing: -0.02em; }
+.app-topbar-sub { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mute); letter-spacing: 0.05em; margin-top: 2px; }
+.app-topbar-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+.notification-bell { position: relative; width: 36px; height: 36px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.notification-bell:hover { border-color: var(--accent); }
+.notification-bell svg { width: 16px; height: 16px; }
+.notification-badge { position: absolute; top: -4px; right: -4px; width: 8px; height: 8px; background: var(--error); border-radius: 50%; border: 2px solid var(--bg); }
+.notification-dropdown { position: absolute; top: 50px; right: 0; width: 320px; background: var(--bg-card); border: 1px solid var(--line); box-shadow: 0 20px 50px -10px rgba(0,0,0,0.5); z-index: 50; display: none; }
+.notification-dropdown.show { display: block; animation: slideDown 0.2s var(--ease-quiet); }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+.notification-item { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line-soft); display: flex; gap: 0.75rem; align-items: start; }
+.notification-item:last-child { border-bottom: none; }
+.notification-icon { width: 28px; height: 28px; background: var(--accent-glow); color: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.notification-content { flex: 1; }
+.notification-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.notification-desc { font-size: 12px; color: var(--text-mute); line-height: 1.4; }
+.notification-time { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+
+.panel { display: none; }
+.panel.active { display: block; animation: fadeIn 0.4s var(--ease-quiet); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+.dash-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+.dash-stat { padding: 1.25rem; border: 1px solid var(--line-soft); background: var(--bg-card); transition: transform 300ms var(--ease-quiet); }
+.dash-stat:hover { transform: translateY(-2px); }
+.dash-stat-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mute); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.5rem; }
+.dash-stat-num { font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.75rem; letter-spacing: -0.03em; line-height: 1; margin-bottom: 0.35rem; }
+.dash-stat-delta { font-family: 'JetBrains Mono', monospace; font-size: 11px; display: flex; align-items: center; gap: 0.3rem; }
+.dash-stat-delta.up { color: var(--success); }
+.dash-stat-delta.down { color: var(--error); }
+.dash-stat-spark { height: 28px; margin-top: 0.6rem; display: flex; align-items: end; gap: 2px; }
+.dash-stat-spark-bar { flex: 1; background: var(--accent-soft); }
+.dash-stat-spark-bar.peak { background: var(--accent); }
+
+.dash-grid-2 { display: grid; grid-template-columns: 1.5fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+.dash-card { background: var(--bg-card); border: 1px solid var(--line-soft); padding: 1.5rem; }
+.dash-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
+.dash-card-title { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.95rem; }
+.dash-card-meta { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mute); letter-spacing: 0.1em; text-transform: uppercase; }
+.live-feed { display: flex; flex-direction: column; gap: 0.4rem; max-height: 280px; overflow-y: auto; }
+.feed-item { display: grid; grid-template-columns: auto 1fr auto; gap: 0.65rem; padding: 0.55rem 0.7rem; border: 1px solid var(--line-soft); font-size: 12px; align-items: center; animation: slideUp 0.4s var(--ease-quiet) both; }
+.feed-bot { font-family: 'JetBrains Mono', monospace; font-size: 9px; padding: 0.12rem 0.35rem; background: var(--accent-soft); color: var(--accent); letter-spacing: 0.05em; }
+.feed-msg { color: var(--text-soft); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feed-time { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); }
+
+.chart-area { height: 200px; position: relative; }
+.chart-area svg { width: 100%; height: 100%; overflow: visible; }
+.chart-grid line { stroke: var(--line-soft); stroke-width: 1; }
+.chart-axis text { font-family: 'JetBrains Mono', monospace; font-size: 9px; fill: var(--text-dim); }
+.chart-line { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.chart-area-fill { fill: var(--accent-glow); }
+.chart-line-dim { fill: none; stroke: var(--text-dim); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-tooltip { position: absolute; background: var(--bg-elev); border: 1px solid var(--line); padding: 0.4rem 0.6rem; font-family: 'JetBrains Mono', monospace; font-size: 10px; pointer-events: none; opacity: 0; transition: opacity 0.2s; white-space: nowrap; z-index: 10; }
+
+.bots-list { display: flex; flex-direction: column; gap: 0.75rem; }
+.bot-card { display: grid; grid-template-columns: auto 1fr auto auto; gap: 1rem; padding: 1.25rem; border: 1px solid var(--line-soft); background: var(--bg-card); align-items: center; transition: border-color 300ms var(--ease-quiet); cursor: pointer; }
+.bot-card:hover { border-color: var(--line-strong); }
+.bot-icon { width: 40px; height: 40px; border-radius: 8px; background: var(--accent-glow); border: 1px solid var(--accent-soft); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--accent); font-size: 14px; }
+.bot-info-name { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+.bot-info-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mute); }
+.bot-status { display: flex; align-items: center; gap: 0.4rem; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+.bot-status.online { color: var(--success); }
+.bot-status.online::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.bot-status.draft { color: var(--text-mute); }
+.bot-status.draft::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
+
+/* BOT BUILDER */
+.builder-canvas { position: relative; min-height: 500px; background-color: var(--bg-card); background-image: radial-gradient(circle, var(--line-soft) 1px, transparent 1px); background-size: 20px 20px; border: 1px solid var(--line-soft); overflow: hidden; }
+.builder-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid var(--line-soft); margin-bottom: 1.5rem; }
+.builder-tool { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 0.3rem 0.6rem; border: 1px solid var(--line); color: var(--text-mute); cursor: pointer; transition: all 0.2s; }
+.builder-tool:hover { border-color: var(--accent); color: var(--accent); }
+.builder-node { position: absolute; min-width: 180px; background: var(--bg-elev); border: 1px solid var(--line); padding: 0.75rem; cursor: grab; user-select: none; z-index: 2; }
+.builder-node:active { cursor: grabbing; }
+.builder-node.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.node-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.node-type { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--text-mute); letter-spacing: 0.1em; text-transform: uppercase; }
+.node-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.node-dot.response { background: var(--success); }
+.node-dot.condition { background: var(--text-soft); }
+.node-dot.api { background: var(--error); }
+.node-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.node-meta { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mute); }
+.builder-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.path-line { fill: none; stroke: var(--line-strong); stroke-width: 1.5; }
+
+.conv-toolbar { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.conv-filter { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 0.35rem 0.7rem; border: 1px solid var(--line); color: var(--text-mute); letter-spacing: 0.1em; text-transform: uppercase; transition: all 200ms var(--ease-quiet); cursor: pointer; }
+.conv-filter.active { color: var(--accent); border-color: var(--accent); background: var(--accent-glow); }
+.conv-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.conv-card { padding: 1.1rem 1.25rem; border: 1px solid var(--line-soft); background: var(--bg-card); display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: start; transition: border-color 300ms var(--ease-quiet); cursor: pointer; }
+.conv-card:hover { border-color: var(--line-strong); }
+.conv-card-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.4rem; }
+.conv-card-name { font-weight: 600; font-size: 14px; }
+.conv-card-time { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mute); }
+.conv-card-preview { font-size: 13px; color: var(--text-soft); line-height: 1.4; }
+.conv-card-tags { display: flex; gap: 0.35rem; margin-top: 0.5rem; }
+.conv-tag { font-family: 'JetBrains Mono', monospace; font-size: 9px; padding: 0.12rem 0.35rem; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid var(--line); }
+.conv-tag.escalated { color: var(--error); border-color: var(--error); }
+.conv-tag.resolved { color: var(--success); border-color: var(--success); }
+.conv-tag.flagged { color: var(--accent); border-color: var(--accent); }
+
+.settings-section { padding: 1.5rem; border: 1px solid var(--line-soft); background: var(--bg-card); margin-bottom: 1rem; }
+.settings-section h3 { font-weight: 700; font-size: 1rem; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--line-soft); }
+.settings-row { display: grid; grid-template-columns: 200px 1fr; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--line-soft); align-items: center; }
+.settings-row:last-child { border-bottom: none; }
+.settings-label { font-size: 13px; color: var(--text-soft); }
+.settings-value { font-size: 13px; }
+.api-key-row { display: flex; gap: 0.5rem; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.api-key-row code { padding: 0.4rem 0.6rem; background: var(--bg-elev); border: 1px solid var(--line-soft); flex: 1; color: var(--text-soft); }
+
+/* COMMAND PALETTE */
+.cmdk-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 1000; display: none; align-items: flex-start; justify-content: center; padding-top: 15vh; }
+.cmdk-overlay.show { display: flex; }
+.cmdk { width: 90%; max-width: 560px; background: var(--bg-card); border: 1px solid var(--line); box-shadow: 0 30px 80px -20px rgba(0,0,0,0.8); }
+.cmdk-input { width: 100%; padding: 1.25rem 1.5rem; background: transparent; border: none; border-bottom: 1px solid var(--line-soft); color: var(--text); font-size: 16px; outline: none; }
+.cmdk-input::placeholder { color: var(--text-mute); }
+.cmdk-results { max-height: 400px; overflow-y: auto; padding: 0.5rem 0; }
+.cmdk-category { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); letter-spacing: 0.15em; text-transform: uppercase; padding: 0.75rem 1.5rem 0.25rem; }
+.cmdk-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.65rem 1.5rem; font-size: 14px; color: var(--text-soft); cursor: pointer; }
+.cmdk-item:hover, .cmdk-item.active { background: var(--bg-hover); color: var(--text); }
+.cmdk-item svg { width: 16px; height: 16px; opacity: 0.7; }
+.cmdk-item.active svg { color: var(--accent); opacity: 1; }
+.cmdk-shortcut { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-dim); }
+
+.footer { border-top: 1px solid var(--line-soft); padding: 4rem 1.5rem 2rem; max-width: 1500px; margin: 0 auto; }
+.footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 2rem; margin-bottom: 3rem; }
+.footer-brand p { color: var(--text-mute); font-size: 0.88rem; line-height: 1.6; max-width: 32ch; margin-top: 1rem; }
+.footer-col h4 { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mute); letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 1rem; }
+.footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.footer-col a { font-size: 13px; color: var(--text-soft); transition: color 200ms var(--ease-quiet); }
+.footer-col a:hover { color: var(--accent); }
+.footer-bottom { padding-top: 1.5rem; border-top: 1px solid var(--line-soft); display: flex; justify-content: space-between; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mute); letter-spacing: 0.05em; }
+.footer-status { display: flex; align-items: center; gap: 0.5rem; }
+
+.toast { position: fixed; bottom: 2rem; right: 2rem; z-index: 9999; padding: 0.85rem 1.25rem; background: var(--bg-card); border: 1px solid var(--line); border-left: 3px solid var(--accent); font-size: 13px; color: var(--text); box-shadow: 0 20px 60px -15px rgba(0,0,0,0.5); transform: translateX(120%); transition: transform 400ms var(--ease-quiet); }
+.toast.show { transform: translateX(0); }
+.toast.error { border-left-color: var(--error); }
+.toast.success { border-left-color: var(--success); }
+
+@media (max-width: 980px) {
+  .hero { grid-template-columns: 1fr; padding-top: 6rem; gap: 2rem; }
+  .chat-widget { height: 480px; }
+  .sticky-pair, .section-head-grid { grid-template-columns: 1fr !important; }
+  .sticky-pair .left { position: static; padding-right: 0; padding-bottom: 1rem; }
+  .pricing-grid { grid-template-columns: 1fr; }
+  .auth-view { grid-template-columns: 1fr; }
+  .auth-visual { display: none; }
+  .app-shell { grid-template-columns: 1fr; }
+  .app-sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; z-index: 200; transform: translateX(-100%); transition: transform 300ms var(--ease-quiet); }
+  .app-sidebar.open { transform: translateX(0); }
+  .app-sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 199; display: none; }
+  .app-sidebar-overlay.show { display: block; }
+  .dash-stats { grid-template-columns: repeat(2, 1fr); }
+  .dash-grid-2 { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+  .nav-links { display: none; }
+  .nav-status { display: none; }
+  .nav-menu-btn { display: flex; }
+  .settings-row { grid-template-columns: 1fr; gap: 0.3rem; }
+  #mobileMenuBtn { display: inline-flex !important; }
+  .cmdk { max-width: 90%; }
+}
+@media (min-width: 981px) {
+  .nav-menu-btn { display: none; }
+  #mobileMenuBtn { display: none !important; }
+}
+@media (max-width: 640px) {
+  .section-pad, .hero { padding-left: 1.25rem; padding-right: 1.25rem; }
+  .nav { padding: 0.85rem 1.25rem; }
+  .hero-stats { gap: 1.5rem; }
+  .hero-actions .btn { flex: 1; justify-content: center; }
+  .footer-grid { grid-template-columns: 1fr; }
+  .footer-bottom { flex-direction: column; gap: 0.75rem; text-align: center; }
+  .dash-stats { grid-template-columns: 1fr; }
+  .app-main { padding: 1.25rem; }
+  .bot-card { grid-template-columns: auto 1fr; }
+  .bot-card > .bot-status, .bot-card > .btn { grid-column: 1 / -1; }
+  .conv-card { grid-template-columns: 1fr; }
+  .toast { left: 1rem; right: 1rem; bottom: 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+
+<!-- NAVIGATION -->
+<nav class="nav" id="mainNav">
+  <div class="nav-logo" onclick="navigate('landing')">
+    <div class="nav-logo-mark"></div>
+    <span>RELAY</span>
+  </div>
+  <div class="nav-links" id="navLinks">
+    <a href="#capabilities" onclick="event.preventDefault(); navigate('landing'); setTimeout(()=>scrollToEl('capabilities'),100)">Platform</a>
+    <a href="#pricing" onclick="event.preventDefault(); navigate('landing'); setTimeout(()=>scrollToEl('pricing'),100)">Pricing</a>
+    <a href="#developers" onclick="event.preventDefault(); navigate('landing'); setTimeout(()=>scrollToEl('developers'),100)">Developers</a>
+  </div>
+  <div class="nav-right" id="navAuth">
+    <div class="nav-status"><div class="status-dot"></div><span>All systems operational</span></div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+      <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <button class="btn btn-ghost btn-sm magnetic" onclick="navigate('login')">Sign in</button>
+    <button class="btn btn-primary btn-sm magnetic" onclick="navigate('register')">Start building →</button>
+    <button class="nav-menu-btn" id="menuBtn" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="nav-right" id="navUser" style="display:none">
+    <button class="theme-toggle" id="themeToggle2" aria-label="Toggle theme">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="openCmdk()">⌘K</button>
+    <button class="btn btn-ghost btn-sm" onclick="navigate('app')">Dashboard</button>
+    <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">Log out</button>
+    <button class="nav-menu-btn" id="menuBtn2" aria-label="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#capabilities" onclick="event.preventDefault(); closeMobileMenu(); navigate('landing'); setTimeout(()=>scrollToEl('capabilities'),100)">Platform</a>
+  <a href="#pricing" onclick="event.preventDefault(); closeMobileMenu(); navigate('landing'); setTimeout(()=>scrollToEl('pricing'),100)">Pricing</a>
+  <a href="#developers" onclick="event.preventDefault(); closeMobileMenu(); navigate('landing'); setTimeout(()=>scrollToEl('developers'),100)">Developers</a>
+  <div class="mobile-menu-actions">
+    <button class="btn btn-block" onclick="closeMobileMenu(); navigate('login')">Sign in</button>
+    <button class="btn btn-primary btn-block" onclick="closeMobileMenu(); navigate('register')">Start building</button>
+  </div>
+</div>
+
+<!-- VIEW: LANDING -->
+<div class="view active" id="view-landing">
+  <section class="hero">
+    <div class="hero-left">
+      <div class="hero-meta"><div class="hero-meta-pulse"></div><span class="label">[ 01 / PLATFORM ] — RELAY v0.4.2</span></div>
+      <h1 class="h-hero" id="hero-title">AGENT INFRASTRUCTURE</h1>
+      <p class="hero-sub">Build, deploy, and observe conversational agents from one calm surface. No dashboards-within-dashboards. No bloat. Just the controls that move the metrics you care about.</p>
+      <div class="hero-actions">
+        <button class="btn btn-primary magnetic" onclick="navigate('register')">Start building →</button>
+        <button class="btn magnetic" onclick="navigate('login')">View dashboard</button>
+      </div>
+      <div class="hero-stats">
+        <div><div class="hero-stat-num" data-count="14200">0</div><div class="hero-stat-label">Agents deployed</div></div>
+        <div><div class="hero-stat-num" data-count="98.4" data-decimal="1">0</div><div class="hero-stat-label">% Uptime / 90d</div></div>
+        <div><div class="hero-stat-num" data-count="47" data-suffix="ms">0</div><div class="hero-stat-label">Median response</div></div>
+      </div>
+    </div>
+    <div>
+      <div class="chat-widget">
+        <div class="chat-header">
+          <div class="chat-agent">
+            <div class="chat-agent-avatar">R</div>
+            <div class="chat-agent-info">
+              <div class="chat-agent-name">Relay Demo Agent</div>
+              <div class="chat-agent-status">Online · replies in ~1s</div>
+            </div>
+          </div>
+          <div class="label" style="font-size:10px">↑ 1,247 today</div>
+        </div>
+        <div class="chat-body" id="chatBody">
+          <div class="msg bot"><div class="msg-avatar">R</div><div class="msg-bubble">Hello — I'm a live Relay agent. Ask me about pricing, capabilities, or how to wire a bot into your stack.</div></div>
+        </div>
+        <div class="chat-suggestions">
+          <button class="chat-suggestion" data-prompt="What can you do?">Capabilities</button>
+          <button class="chat-suggestion" data-prompt="Show me pricing">Pricing</button>
+          <button class="chat-suggestion" data-prompt="Use case for ecommerce">E-commerce</button>
+          <button class="chat-suggestion" data-prompt="How does the API work?">Developer API</button>
+        </div>
+        <div class="chat-input">
+          <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off">
+          <button class="voice-btn" id="voiceBtn" aria-label="Voice input">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+          <button class="chat-send" id="chatSend" aria-label="Send">→</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="capabilities" id="capabilities">
+    <div class="sticky-pair section-pad">
+      <div class="left">
+        <div class="label">[ 02 / CAPABILITIES ]</div>
+        <h2 class="h-section">Six primitives. Every conversation, observed.</h2>
+        <p>Each capability is a building block you compose visually in the bot builder. No code required for the 80% case — and a clean API for the 20% that needs a custom branch.</p>
+      </div>
+      <div class="cap-list">
+        <div class="cap-row"><div class="cap-num">01</div><div><div class="cap-title">Intent recognition</div><div class="cap-desc">Fine-tuned transformer classifies user utterances into 200+ built-in intents with confidence scores. Custom intents train in under 4 minutes.</div></div></div>
+        <div class="cap-row"><div class="cap-num">02</div><div><div class="cap-title">Multilingual routing</div><div class="cap-desc">42 languages detected automatically on first message. Agents respond in the user's language without explicit configuration.</div></div></div>
+        <div class="cap-row"><div class="cap-num">03</div><div><div class="cap-title">Sentiment analysis</div><div class="cap-desc">Seven-state classifier tracks sentiment drift across the conversation. Triggers escalation when frustration pattern emerges.</div></div></div>
+        <div class="cap-row"><div class="cap-num">04</div><div><div class="cap-title">Human handoff</div><div class="cap-desc">One-click takeover with full transcript, AI-generated summary, and tagged moments of friction. The agent stays in listen mode.</div></div></div>
+        <div class="cap-row"><div class="cap-num">05</div><div><div class="cap-title">Analytics & telemetry</div><div class="cap-desc">Conversation volume, resolution rate, fallback rate, top intents, peak hours — all streamed live, all exportable to CSV.</div></div></div>
+        <div class="cap-row"><div class="cap-num">06</div><div><div class="cap-title">API & SDK integrations</div><div class="cap-desc">REST + WebSocket API. Official SDKs in TypeScript, Python, Go, Ruby. Webhook events for every state transition.</div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pricing section-pad" id="pricing">
+    <div class="section-head">
+      <div class="label">[ 03 / PRICING ]</div>
+      <div class="section-head-grid"><h2 class="h-section">Pricing that scales with resolution, not seats.</h2><p>No per-seat tax. No conversation overage surprise. Annual billing saves 20%.</p></div>
+    </div>
+    <div class="pricing-toggle">
+      <button class="active" data-billing="monthly">Monthly</button>
+      <button data-billing="annual">Annual <span class="save-badge">−20%</span></button>
+    </div>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="price-tier">Starter</div><div class="price-name">For first agents</div>
+        <div class="price-amount"><span style="font-size:1.2rem;opacity:0.6">$</span><span data-price-monthly="0" data-price-annual="0">0</span></div>
+        <div class="price-period">/ month · 1k conversations</div>
+        <div class="price-desc">Everything you need to ship your first production agent. No credit card required.</div>
+        <ul class="price-features"><li>1 bot, 1k conversations / month</li><li>Visual bot builder</li><li>10 built-in intents</li><li>Email support</li><li class="disabled">Custom training data</li><li class="disabled">Analytics export</li></ul>
+        <button class="btn btn-block magnetic" onclick="navigate('register')">Start free →</button>
+      </div>
+      <div class="price-card featured">
+        <div class="price-tier">Pro</div><div class="price-name">For teams shipping</div>
+        <div class="price-amount"><span style="font-size:1.2rem;opacity:0.6">$</span><span data-price-monthly="89" data-price-annual="71">89</span></div>
+        <div class="price-period">/ month · unlimited bots</div>
+        <div class="price-desc">Full toolkit for production teams. Custom training, analytics export, priority support.</div>
+        <ul class="price-features"><li>Unlimited bots & conversations</li><li>Custom intents & training</li><li>Full analytics + export</li><li>Human handoff</li><li>All 40+ integrations</li><li>Priority support (4h SLA)</li></ul>
+        <button class="btn btn-primary btn-block magnetic" onclick="navigate('register')">Start 14-day trial →</button>
+      </div>
+      <div class="price-card">
+        <div class="price-tier">Enterprise</div><div class="price-name">For scale & compliance</div>
+        <div class="price-amount"><span style="font-size:1.5rem;opacity:0.7">Custom</span></div>
+        <div class="price-period">/ annual contract</div>
+        <div class="price-desc">Dedicated infrastructure, SSO, audit logs, and a named solutions engineer.</div>
+        <ul class="price-features"><li>Dedicated infrastructure</li><li>99.99% uptime SLA</li><li>SSO + SAML + SCIM</li><li>Audit logs + data residency</li><li>On-prem / VPC deployment</li><li>Named solutions engineer</li></ul>
+        <button class="btn btn-block magnetic" onclick="showToast('Sales team will reach out within 24h.', 'success')">Talk to sales →</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer" id="developers">
+    <div class="footer-grid">
+      <div class="footer-brand"><div class="nav-logo"><div class="nav-logo-mark"></div><span>RELAY</span></div><p>Conversational agent infrastructure for teams that ship calmly. Built in San Francisco and Berlin.</p></div>
+      <div class="footer-col"><h4>Platform</h4><ul><li><a href="#">Bot builder</a></li><li><a href="#">Conversations</a></li><li><a href="#">Analytics</a></li><li><a href="#">Integrations</a></li></ul></div>
+      <div class="footer-col"><h4>Developers</h4><ul><li><a href="#">Documentation</a></li><li><a href="#">API reference</a></li><li><a href="#">SDKs</a></li><li><a href="#">Changelog</a></li></ul></div>
+      <div class="footer-col"><h4>Company</h4><ul><li><a href="#">About</a></li><li><a href="#">Customers</a></li><li><a href="#">Careers</a></li><li><a href="#">Contact</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><div class="footer-status"><div class="status-dot"></div><span>All systems operational · 99.98% uptime</span></div><span>© 2025 Relay Labs, Inc. · v0.4.2</span></div>
+  </footer>
+</div>
+
+<!-- VIEW: LOGIN -->
+<div class="view" id="view-login">
+  <div class="auth-view">
+    <div class="auth-visual">
+      <canvas id="authCanvas"></canvas>
+      <div class="auth-visual-content"><div class="label" style="color:var(--accent)">[ RELAY · ACCESS ]</div><h3>Conversational infrastructure, quietly observing.</h3><p>Sign in to your workspace. Your bots, conversations, and analytics are exactly where you left them.</p></div>
+      <div class="auth-visual-foot"><span>v0.4.2 · build 2a91f</span><span>us-east-1 · eu-west-1</span></div>
+    </div>
+    <div class="auth-form-side">
+      <div class="auth-form-wrap">
+        <div class="auth-back" onclick="navigate('landing')">← Back to home</div>
+        <div class="auth-form-head"><div class="label">[ SIGN IN ]</div><h2>Welcome back.</h2><p>Sign in to your Relay workspace.</p></div>
+        <div class="auth-error-banner" id="loginError"></div>
+        <form id="loginForm" onsubmit="event.preventDefault(); handleLogin();">
+          <div class="auth-field" id="loginEmailField"><label>Email</label><input type="email" id="loginEmail" placeholder="you@company.com" autocomplete="email"><div class="auth-field-error">Enter a valid email address.</div></div>
+          <div class="auth-field" id="loginPassField"><label>Password</label><input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password"><div class="auth-field-error">Password is required.</div></div>
+          <div class="auth-options"><label class="auth-checkbox"><input type="checkbox" id="loginRemember"> Remember this device</label><span class="auth-magic" onclick="showToast('Magic link sent to your email.', 'success')">Send magic link →</span></div>
+          <button class="btn btn-primary btn-block magnetic" type="submit">Sign in →</button>
+        </form>
+        <div class="auth-divider">Or continue with</div>
+        <div class="auth-sso"><button class="auth-sso-btn" onclick="ssoLogin('Google')">Google</button><button class="auth-sso-btn" onclick="ssoLogin('GitHub')">GitHub</button><button class="auth-sso-btn" onclick="ssoLogin('Microsoft')">Microsoft</button></div>
+        <div class="auth-switch">No account yet? <a onclick="navigate('register')">Create one →</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW: REGISTER -->
+<div class="view" id="view-register">
+  <div class="auth-view">
+    <div class="auth-visual">
+      <canvas id="authCanvas2"></canvas>
+      <div class="auth-visual-content"><div class="label" style="color:var(--accent)">[ RELAY · CREATE ]</div><h3>Ship your first agent in under eight minutes.</h3><p>No credit card. No "verify your email" wall. Just a workspace and a bot builder.</p></div>
+      <div class="auth-visual-foot"><span>Free tier · 1k conversations/mo</span><span>Cancel anytime</span></div>
+    </div>
+    <div class="auth-form-side">
+      <div class="auth-form-wrap">
+        <div class="auth-back" onclick="navigate('landing')">← Back to home</div>
+        <div class="auth-form-head"><div class="label">[ CREATE WORKSPACE · STEP <span id="regStep">1</span> OF 3 ]</div><h2 id="regTitle">Create your account.</h2><p id="regSub">Start free. No credit card required.</p></div>
+        <div class="auth-steps"><div class="auth-step active" id="step1">Account</div><div class="auth-step" id="step2">Workspace</div><div class="auth-step" id="step3">Use case</div></div>
+        <div class="auth-error-banner" id="regError"></div>
+
+        <div id="regStep1">
+          <div class="auth-field" id="regEmailField"><label>Email</label><input type="email" id="regEmail" placeholder="you@company.com" autocomplete="email"><div class="auth-field-error">Enter a valid email address.</div></div>
+          <div class="auth-field" id="regPassField"><label>Password</label><input type="password" id="regPass" placeholder="Min 8 characters" autocomplete="new-password"><div class="auth-field-error">Password must be at least 8 characters.</div><div class="pass-strength" id="passStrength"><span></span><span></span><span></span><span></span></div></div>
+          <button class="btn btn-primary btn-block magnetic" onclick="regNext(1)">Continue → Workspace</button>
+        </div>
+
+        <div id="regStep2" style="display:none">
+          <div class="auth-field"><label>Workspace name</label><input type="text" id="regWorkspace" placeholder="Acme Support"></div>
+          <div class="auth-field"><label>Workspace slug</label><input type="text" id="regSlug" placeholder="acme-support"></div>
+          <div style="display:flex;gap:0.5rem;margin-top:1rem"><button class="btn btn-block" onclick="regBack(2)">← Back</button><button class="btn btn-primary btn-block magnetic" onclick="regNext(2)">Continue → Use case</button></div>
+        </div>
+
+        <div id="regStep3" style="display:none">
+          <div class="label" style="margin-bottom:0.75rem">What will your agent do?</div>
+          <div style="display:flex;flex-direction:column;gap:0.5rem">
+            <button class="auth-sso-btn" style="justify-content:flex-start;padding:0.85rem" onclick="selectUseCase(event, 'ecommerce')"><span style="font-weight:600">E-commerce support</span><span style="margin-left:auto;font-size:10px;color:var(--text-mute)">Order tracking, returns</span></button>
+            <button class="auth-sso-btn" style="justify-content:flex-start;padding:0.85rem" onclick="selectUseCase(event, 'it')"><span style="font-weight:600">Internal IT helpdesk</span><span style="margin-left:auto;font-size:10px;color:var(--text-mute)">Password resets, access</span></button>
+            <button class="auth-sso-btn" style="justify-content:flex-start;padding:0.85rem" onclick="selectUseCase(event, 'booking')"><span style="font-weight:600">Appointment booking</span><span style="margin-left:auto;font-size:10px;color:var(--text-mute)">Scheduling, reminders</span></button>
+            <button class="auth-sso-btn" style="justify-content:flex-start;padding:0.85rem" onclick="selectUseCase(event, 'lead')"><span style="font-weight:600">Lead qualification</span><span style="margin-left:auto;font-size:10px;color:var(--text-mute)">ICP scoring, routing</span></button>
+            <button class="auth-sso-btn" style="justify-content:flex-start;padding:0.85rem" onclick="selectUseCase(event, 'other')"><span style="font-weight:600">Something else</span><span style="margin-left:auto;font-size:10px;color:var(--text-mute)">Custom use case</span></button>
+          </div>
+          <div style="display:flex;gap:0.5rem;margin-top:1rem"><button class="btn btn-block" onclick="regBack(3)">← Back</button><button class="btn btn-primary btn-block magnetic" onclick="handleRegister()">Create workspace →</button></div>
+        </div>
+
+        <div class="auth-divider">Or continue with</div>
+        <div class="auth-sso"><button class="auth-sso-btn" onclick="ssoLogin('Google')">Google</button><button class="auth-sso-btn" onclick="ssoLogin('GitHub')">GitHub</button><button class="auth-sso-btn" onclick="ssoLogin('Microsoft')">Microsoft</button></div>
+        <div class="auth-switch">Already have an account? <a onclick="navigate('login')">Sign in →</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW: DASHBOARD APP -->
+<div class="view" id="view-app">
+  <div class="app-sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+  <div class="app-shell">
+    <aside class="app-sidebar" id="appSidebar">
+      <div class="app-sidebar-head"><div class="nav-logo" onclick="navigate('landing')"><div class="nav-logo-mark"></div><span>RELAY</span></div><button class="nav-menu-btn" onclick="toggleSidebar()" style="border:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+      <div class="app-workspace"><div class="app-workspace-label">Workspace</div><div class="app-workspace-name" id="wsName">Loading...</div></div>
+      <nav class="app-nav">
+        <div class="app-nav-section">Main</div>
+        <div class="app-nav-item active" data-panel="overview" onclick="showPanel('overview')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Overview</div>
+        <div class="app-nav-item" data-panel="bots" onclick="showPanel('bots')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 10v6M4.22 4.22l4.24 4.24m7.08 7.08l4.24 4.24M1 12h6m10 0h6"/></svg>Bots<span class="app-nav-badge">3</span></div>
+        <div class="app-nav-item" data-panel="builder" onclick="showPanel('builder')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Builder</div>
+        <div class="app-nav-item" data-panel="conversations" onclick="showPanel('conversations')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>Conversations<span class="app-nav-badge">23</span></div>
+        <div class="app-nav-item" data-panel="analytics" onclick="showPanel('analytics')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Analytics</div>
+        <div class="app-nav-section">Configure</div>
+        <div class="app-nav-item" data-panel="integrations" onclick="showPanel('integrations')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Integrations</div>
+        <div class="app-nav-item" data-panel="settings" onclick="showPanel('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</div>
+      </nav>
+      <div class="app-sidebar-foot">
+        <div class="app-user-avatar" id="userAvatar">U</div>
+        <div class="app-user-info"><div class="app-user-email" id="userEmail">user@email.com</div><div class="app-user-role">Owner</div></div>
+        <div class="app-logout" onclick="Auth.logout()" title="Log out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
+      </div>
+    </aside>
+
+    <main class="app-main">
+      <div class="app-topbar">
+        <div><h1 id="pageTitle">Overview</h1><div class="app-topbar-sub" id="pageSub">Last 24 hours · live · refreshes every 5s</div></div>
+        <div class="app-topbar-actions">
+          <button class="btn btn-sm" onclick="toggleSidebar()" id="mobileMenuBtn">☰ Menu</button>
+          <div style="position:relative">
+            <div class="notification-bell" id="bellBtn" onclick="toggleNotifications()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <div class="notification-badge"></div>
+            </div>
+            <div class="notification-dropdown" id="notifDropdown">
+              <div class="notification-item"><div class="notification-icon">!</div><div class="notification-content"><div class="notification-title">Bot Escalation</div><div class="notification-desc">Storefront Support escalated a billing dispute to humans.</div><div class="notification-time">2 min ago</div></div></div>
+              <div class="notification-item"><div class="notification-icon">i</div><div class="notification-content"><div class="notification-title">API Limit Warning</div><div class="notification-desc">You are at 82% of your monthly conversation quota.</div><div class="notification-time">1 hour ago</div></div></div>
+              <div class="notification-item"><div class="notification-icon">✓</div><div class="notification-content"><div class="notification-title">Deployment Successful</div><div class="notification-desc">IT Helpdesk bot v1.4.2 is now live.</div><div class="notification-time">Yesterday</div></div></div>
+            </div>
+          </div>
+          <button class="btn btn-sm magnetic" onclick="openCmdk()">⌘K</button>
+          <button class="btn btn-primary btn-sm magnetic" onclick="showPanel('builder')">+ New bot</button>
+        </div>
+      </div>
+
+      <div class="panel active" id="panel-overview">
+        <div class="dash-stats">
+          <div class="dash-stat"><div class="dash-stat-label">Active bots</div><div class="dash-stat-num" data-count="3">0</div><div class="dash-stat-delta up">↑ 1 this week</div><div class="dash-stat-spark"><div class="dash-stat-spark-bar" style="height:30%"></div><div class="dash-stat-spark-bar" style="height:45%"></div><div class="dash-stat-spark-bar" style="height:38%"></div><div class="dash-stat-spark-bar" style="height:55%"></div><div class="dash-stat-spark-bar" style="height:48%"></div><div class="dash-stat-spark-bar" style="height:62%"></div><div class="dash-stat-spark-bar peak" style="height:75%"></div></div></div>
+          <div class="dash-stat"><div class="dash-stat-label">Conversations today</div><div class="dash-stat-num" data-count="1247">0</div><div class="dash-stat-delta up">↑ 18.4% vs avg</div><div class="dash-stat-spark"><div class="dash-stat-spark-bar" style="height:20%"></div><div class="dash-stat-spark-bar" style="height:35%"></div><div class="dash-stat-spark-bar" style="height:50%"></div><div class="dash-stat-spark-bar" style="height:42%"></div><div class="dash-stat-spark-bar" style="height:65%"></div><div class="dash-stat-spark-bar" style="height:80%"></div><div class="dash-stat-spark-bar peak" style="height:95%"></div></div></div>
+          <div class="dash-stat"><div class="dash-stat-label">Resolution rate</div><div class="dash-stat-num" data-count="87.2" data-decimal="1" data-suffix="%">0</div><div class="dash-stat-delta up">↑ 3.1 pts</div><div class="dash-stat-spark"><div class="dash-stat-spark-bar" style="height:60%"></div><div class="dash-stat-spark-bar" style="height:65%"></div><div class="dash-stat-spark-bar" style="height:70%"></div><div class="dash-stat-spark-bar" style="height:68%"></div><div class="dash-stat-spark-bar" style="height:75%"></div><div class="dash-stat-spark-bar" style="height:78%"></div><div class="dash-stat-spark-bar peak" style="height:87%"></div></div></div>
+          <div class="dash-stat"><div class="dash-stat-label">Sentiment score</div><div class="dash-stat-num" data-count="4.6" data-decimal="1">0</div><div class="dash-stat-delta up">↑ 0.2 vs avg</div><div class="dash-stat-spark"><div class="dash-stat-spark-bar" style="height:55%"></div><div class="dash-stat-spark-bar" style="height:58%"></div><div class="dash-stat-spark-bar" style="height:60%"></div><div class="dash-stat-spark-bar" style="height:62%"></div><div class="dash-stat-spark-bar" style="height:65%"></div><div class="dash-stat-spark-bar" style="height:68%"></div><div class="dash-stat-spark-bar peak" style="height:72%"></div></div></div>
+        </div>
+        <div class="dash-grid-2">
+          <div class="dash-card">
+            <div class="dash-card-head"><div class="dash-card-title">Conversation volume · 7 days</div><div class="dash-card-meta">Hourly · UTC</div></div>
+            <div class="chart-area" id="chart1">
+              <svg viewBox="0 0 600 200" preserveAspectRatio="none">
+                <g class="chart-grid"><line x1="0" y1="50" x2="600" y2="50"/><line x1="0" y1="100" x2="600" y2="100"/><line x1="0" y1="150" x2="600" y2="150"/></g>
+                <path class="chart-area-fill" d="M 30 150 L 60 135 L 90 140 L 120 120 L 150 110 L 180 100 L 210 80 L 240 65 L 270 70 L 300 55 L 330 40 L 360 50 L 390 35 L 420 20 L 450 30 L 480 45 L 510 60 L 540 70 L 570 55 L 570 200 L 30 200 Z"/>
+                <path class="chart-line" d="M 30 150 L 60 135 L 90 140 L 120 120 L 150 110 L 180 100 L 210 80 L 240 65 L 270 70 L 300 55 L 330 40 L 360 50 L 390 35 L 420 20 L 450 30 L 480 45 L 510 60 L 540 70 L 570 55"/>
+                <path class="chart-line-dim" d="M 30 165 L 60 155 L 90 160 L 120 145 L 150 140 L 180 135 L 210 120 L 240 110 L 270 115 L 300 100 L 330 90 L 360 95 L 390 85 L 420 70 L 450 80 L 480 90 L 510 100 L 540 110 L 570 95"/>
+              </svg>
+              <div class="chart-tooltip" id="tooltip1"></div>
+            </div>
+          </div>
+          <div class="dash-card">
+            <div class="dash-card-head"><div class="dash-card-title">Live conversation feed</div><div class="dash-card-meta">Streaming</div></div>
+            <div class="live-feed" id="liveFeed">
+              <div class="feed-item"><span class="feed-bot">SUPPORT</span><span class="feed-msg">where is my order #4821</span><span class="feed-time">just now</span></div>
+              <div class="feed-item"><span class="feed-bot">SALES</span><span class="feed-msg">do you have educational pricing</span><span class="feed-time">12s</span></div>
+              <div class="feed-item"><span class="feed-bot">IT-HELP</span><span class="feed-msg">reset my SSO password</span><span class="feed-time">28s</span></div>
+              <div class="feed-item"><span class="feed-bot">SUPPORT</span><span class="feed-msg">refund for order #3390</span><span class="feed-time">45s</span></div>
+              <div class="feed-item"><span class="feed-bot">BOOKING</span><span class="feed-msg">schedule appt next tuesday</span><span class="feed-time">1m</span></div>
+              <div class="feed-item"><span class="feed-bot">SALES</span><span class="feed-msg">enterprise plan SLA details</span><span class="feed-time">1m 20s</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-bots">
+        <div class="bots-list">
+          <div class="bot-card" onclick="showPanel('builder')"><div class="bot-icon">SS</div><div><div class="bot-info-name">Storefront Support</div><div class="bot-info-meta">bot_3f9a2c · 1,247 conversations today · 87% resolution</div></div><div class="bot-status online">Online</div><button class="btn btn-sm">Manage →</button></div>
+          <div class="bot-card" onclick="showPanel('builder')"><div class="bot-icon">IH</div><div><div class="bot-info-name">IT Helpdesk</div><div class="bot-info-meta">bot_2a8e1f · 342 conversations today · 92% resolution</div></div><div class="bot-status online">Online</div><button class="btn btn-sm">Manage →</button></div>
+          <div class="bot-card" onclick="showPanel('builder')"><div class="bot-icon">LQ</div><div><div class="bot-info-name">Lead Qualifier</div><div class="bot-info-meta">bot_1b4c7d · 89 conversations today · 76% resolution</div></div><div class="bot-status draft">Draft</div><button class="btn btn-sm">Edit →</button></div>
+        </div>
+        <div style="margin-top:1.5rem"><button class="btn btn-primary magnetic" onclick="showPanel('builder')">+ Create new bot</button></div>
+      </div>
+
+      <div class="panel" id="panel-builder">
+        <div class="builder-toolbar">
+          <div style="display:flex;gap:0.5rem"><span class="label">Flow: Storefront Support</span></div>
+          <div style="display:flex;gap:0.5rem">
+            <button class="builder-tool">Undo</button>
+            <button class="builder-tool">Redo</button>
+            <button class="builder-tool">Auto-layout</button>
+            <button class="builder-tool">Save draft</button>
+            <button class="btn btn-sm btn-primary magnetic" onclick="showToast('Bot deployed successfully.', 'success')">Deploy →</button>
+          </div>
+        </div>
+        <div class="builder-canvas" id="builderCanvas">
+          <svg class="builder-svg" id="builderSvg"></svg>
+          <div class="builder-node" data-id="1" style="left: 50px; top: 50px;">
+            <div class="node-head"><span class="node-type">Trigger</span><div class="node-dot"></div></div>
+            <div class="node-title">Order Status Intent</div>
+            <div class="node-meta">confidence ≥ 0.85</div>
+          </div>
+          <div class="builder-node" data-id="2" style="left: 350px; top: 150px;">
+            <div class="node-head"><span class="node-type">Condition</span><div class="node-dot condition"></div></div>
+            <div class="node-title">Has Order #?</div>
+            <div class="node-meta">extract entity</div>
+          </div>
+          <div class="builder-node" data-id="3" style="left: 650px; top: 50px;">
+            <div class="node-head"><span class="node-type">API Call</span><div class="node-dot api"></div></div>
+            <div class="node-title">Shopify Lookup</div>
+            <div class="node-meta">GET /orders/:id</div>
+          </div>
+          <div class="builder-node" data-id="4" style="left: 650px; top: 250px;">
+            <div class="node-head"><span class="node-type">Response</span><div class="node-dot response"></div></div>
+            <div class="node-title">Ask for Order #</div>
+            <div class="node-meta">"What is your order number?"</div>
+          </div>
+          <div class="builder-node" data-id="5" style="left: 950px; top: 50px;">
+            <div class="node-head"><span class="node-type">Response</span><div class="node-dot response"></div></div>
+            <div class="node-title">Send Status</div>
+            <div class="node-meta">"Your order ships tomorrow."</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-conversations">
+        <div class="conv-toolbar"><button class="conv-filter active">All · 247</button><button class="conv-filter">Unresolved · 23</button><button class="conv-filter">Escalated · 4</button><button class="conv-filter">Flagged · 7</button><button class="conv-filter">Archived</button></div>
+        <div class="conv-list">
+          <div class="conv-card"><div><div class="conv-card-head"><span class="conv-card-name">Sarah Chen</span><span class="conv-card-time">just now</span></div><div class="conv-card-preview">I've been charged twice for my subscription this month...</div><div class="conv-card-tags"><span class="conv-tag escalated">Escalated</span><span class="conv-tag">Billing</span></div></div><button class="btn btn-sm btn-primary magnetic">Take over →</button></div>
+          <div class="conv-card"><div><div class="conv-card-head"><span class="conv-card-name">Marcus Rivera</span><span class="conv-card-time">2m</span></div><div class="conv-card-preview">Order #3390 — refund request, item arrived damaged</div><div class="conv-card-tags"><span class="conv-tag flagged">Flagged</span><span class="conv-tag">Refund</span></div></div><button class="btn btn-sm">View →</button></div>
+          <div class="conv-card"><div><div class="conv-card-head"><span class="conv-card-name">Yuki Tanaka</span><span class="conv-card-time">8m</span></div><div class="conv-card-preview">Need to cancel my appointment, can I reschedule...</div><div class="conv-card-tags"><span class="conv-tag">Booking</span></div></div><button class="btn btn-sm">View →</button></div>
+          <div class="conv-card"><div><div class="conv-card-head"><span class="conv-card-name">Elena Volkov</span><span class="conv-card-time">23m</span></div><div class="conv-card-preview">SSO password reset, can't access the dashboard</div><div class="conv-card-tags"><span class="conv-tag resolved">Resolved</span><span class="conv-tag">IT</span></div></div><button class="btn btn-sm">View →</button></div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-analytics">
+        <div class="dash-card" style="margin-bottom:1rem">
+          <div class="dash-card-head"><div class="dash-card-title">Top intents · 7 days</div><div class="dash-card-meta">By conversation count</div></div>
+          <div style="display:flex;flex-direction:column;gap:0.65rem">
+            <div style="display:grid;grid-template-columns:140px 1fr 60px;gap:1rem;align-items:center;font-size:12px"><span style="color:var(--text-soft)">billing.refund</span><div style="height:8px;background:var(--line-soft)"><div style="height:100%;background:var(--accent);width:92%"></div></div><span class="mono" style="font-size:11px;color:var(--text-mute);text-align:right">1,247</span></div>
+            <div style="display:grid;grid-template-columns:140px 1fr 60px;gap:1rem;align-items:center;font-size:12px"><span style="color:var(--text-soft)">shipping.status</span><div style="height:8px;background:var(--line-soft)"><div style="height:100%;background:var(--accent);width:78%"></div></div><span class="mono" style="font-size:11px;color:var(--text-mute);text-align:right">1,058</span></div>
+            <div style="display:grid;grid-template-columns:140px 1fr 60px;gap:1rem;align-items:center;font-size:12px"><span style="color:var(--text-soft)">account.reset</span><div style="height:8px;background:var(--line-soft)"><div style="height:100%;background:var(--accent);width:64%"></div></div><span class="mono" style="font-size:11px;color:var(--text-mute);text-align:right">872</span></div>
+            <div style="display:grid;grid-template-columns:140px 1fr 60px;gap:1rem;align-items:center;font-size:12px"><span style="color:var(--text-soft)">product.faq</span><div style="height:8px;background:var(--line-soft)"><div style="height:100%;background:var(--accent);width:48%"></div></div><span class="mono" style="font-size:11px;color:var(--text-mute);text-align:right">654</span></div>
+            <div style="display:grid;grid-template-columns:140px 1fr 60px;gap:1rem;align-items:center;font-size:12px"><span style="color:var(--text-soft)">fallback.unmatched</span><div style="height:8px;background:var(--line-soft)"><div style="height:100%;background:var(--error);width:14%"></div></div><span class="mono" style="font-size:11px;color:var(--text-mute);text-align:right">192</span></div>
+          </div>
+        </div>
+        <div class="dash-grid-2">
+          <div class="dash-card">
+            <div class="dash-card-head"><div class="dash-card-title">Volume · 30 days</div><div class="dash-card-meta">Daily</div></div>
+            <div class="chart-area" id="chart2">
+              <svg viewBox="0 0 600 200" preserveAspectRatio="none">
+                <g class="chart-grid"><line x1="0" y1="50" x2="600" y2="50"/><line x1="0" y1="100" x2="600" y2="100"/><line x1="0" y1="150" x2="600" y2="150"/></g>
+                <path class="chart-area-fill" d="M 30 160 L 60 150 L 90 155 L 120 140 L 150 130 L 180 135 L 210 115 L 240 120 L 270 105 L 300 95 L 330 100 L 360 85 L 390 70 L 420 80 L 450 60 L 480 50 L 510 55 L 540 65 L 570 50 L 570 200 L 30 200 Z"/>
+                <path class="chart-line" d="M 30 160 L 60 150 L 90 155 L 120 140 L 150 130 L 180 135 L 210 115 L 240 120 L 270 105 L 300 95 L 330 100 L 360 85 L 390 70 L 420 80 L 450 60 L 480 50 L 510 55 L 540 65 L 570 50"/>
+              </svg>
+              <div class="chart-tooltip" id="tooltip2"></div>
+            </div>
+          </div>
+          <div class="dash-card" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div style="position:relative;width:160px;height:160px">
+              <svg viewBox="0 0 100 100" style="transform:rotate(-90deg)"><circle cx="50" cy="50" r="42" fill="none" stroke="var(--line-soft)" stroke-width="6"/><circle cx="50" cy="50" r="42" fill="none" stroke="var(--accent)" stroke-width="6" stroke-dasharray="263.9" stroke-dashoffset="34" stroke-linecap="square"/></svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center"><div class="mono" style="font-weight:700;font-size:1.75rem">87.2%</div><div class="mono" style="font-size:9px;color:var(--text-mute);letter-spacing:0.15em;text-transform:uppercase">Resolved</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-integrations">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.75rem">
+          <div class="dash-card" style="padding:1.25rem"><div style="display:flex;justify-content:space-between;margin-bottom:0.75rem"><div class="bot-icon" style="width:32px;height:32px;font-size:11px">SL</div><span class="bot-status online">Connected</span></div><div style="font-weight:600;font-size:14px;margin-bottom:0.2rem">Slack</div><div style="font-size:12px;color:var(--text-mute);margin-bottom:0.75rem">Handoff notifications, daily summaries</div><button class="btn btn-sm btn-block">Manage</button></div>
+          <div class="dash-card" style="padding:1.25rem"><div style="display:flex;justify-content:space-between;margin-bottom:0.75rem"><div class="bot-icon" style="width:32px;height:32px;font-size:11px">ZD</div><span class="bot-status online">Connected</span></div><div style="font-weight:600;font-size:14px;margin-bottom:0.2rem">Zendesk</div><div style="font-size:12px;color:var(--text-mute);margin-bottom:0.75rem">Auto-create tickets on escalation</div><button class="btn btn-sm btn-block">Manage</button></div>
+          <div class="dash-card" style="padding:1.25rem"><div style="display:flex;justify-content:space-between;margin-bottom:0.75rem"><div class="bot-icon" style="width:32px;height:32px;font-size:11px">SH</div><span class="bot-status online">Connected</span></div><div style="font-weight:600;font-size:14px;margin-bottom:0.2rem">Shopify</div><div style="font-size:12px;color:var(--text-mute);margin-bottom:0.75rem">Order lookup, refund initiation</div><button class="btn btn-sm btn-block">Manage</button></div>
+          <div class="dash-card" style="padding:1.25rem"><div style="display:flex;justify-content:space-between;margin-bottom:0.75rem"><div class="bot-icon" style="width:32px;height:32px;font-size:11px">FB</div><span class="bot-status draft">Available</span></div><div style="font-weight:600;font-size:14px;margin-bottom:0.2rem">Messenger</div><div style="font-size:12px;color:var(--text-mute);margin-bottom:0.75rem">Connect a Facebook page via OAuth</div><button class="btn btn-sm btn-block btn-primary magnetic">Connect</button></div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-settings">
+        <div class="settings-section"><h3>Workspace</h3><div class="settings-row"><div class="settings-label">Workspace name</div><div class="settings-value" id="settingsWsName">—</div></div><div class="settings-row"><div class="settings-label">Workspace slug</div><div class="settings-value" id="settingsWsSlug">—</div></div><div class="settings-row"><div class="settings-label">Plan</div><div class="settings-value">Pro · $89/mo · <a href="#" style="color:var(--accent)" onclick="showToast('Manage billing in the full dashboard.', 'success')">Manage billing</a></div></div><div class="settings-row"><div class="settings-label">Created</div><div class="settings-value" id="settingsCreated">—</div></div></div>
+        <div class="settings-section"><h3>Account</h3><div class="settings-row"><div class="settings-label">Email</div><div class="settings-value" id="settingsEmail">—</div></div><div class="settings-row"><div class="settings-label">Role</div><div class="settings-value">Owner / Admin</div></div><div class="settings-row"><div class="settings-label">Password</div><div class="settings-value"><a href="#" style="color:var(--accent)" onclick="showToast('Password reset link sent.', 'success')">Change password →</a></div></div></div>
+        <div class="settings-section"><h3>API Keys</h3><div class="settings-row"><div class="settings-label">Production key</div><div class="settings-value"><div class="api-key-row"><code id="apiKeyDisplay">rly_live_••••••••••••••••3f9a</code><button class="btn btn-sm" onclick="copyApiKey()">Copy</button><button class="btn btn-sm" onclick="showToast('API key regenerated. Old key is now invalid.', 'success')">Regenerate</button></div></div></div><div class="settings-row"><div class="settings-label">Test key</div><div class="settings-value"><div class="api-key-row"><code>rly_test_••••••••••••••••2a8e</code><button class="btn btn-sm">Copy</button></div></div></div></div>
+        <div class="settings-section"><h3>Team Members</h3><div class="settings-row"><div class="settings-label">You</div><div class="settings-value">Owner · full access</div></div><div class="settings-row"><div class="settings-label">Invited</div><div class="settings-value">0 members · <a href="#" style="color:var(--accent)" onclick="showToast('Invite link copied to clipboard.', 'success')">Invite teammates →</a></div></div></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- COMMAND PALETTE -->
+<div class="cmdk-overlay" id="cmdkOverlay" onclick="if(event.target===this) closeCmdk()">
+  <div class="cmdk">
+    <input type="text" class="cmdk-input" id="cmdkInput" placeholder="Type a command or search..." oninput="filterCmdk()">
+    <div class="cmdk-results" id="cmdkResults"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// CHATBOT API CONFIG
+const CHATBOT_CONFIG = {
+  apiEndpoint: 'https://relay-backend-jvbo.onrender.com/v1/chat/completions',        
+  apiKey: '',             
+  model: 'gemini-3.6-flash',              
+  systemPrompt: 'You are a helpful assistant for Relay, an AI chatbot platform. Answer questions about pricing, capabilities, and use cases concisely. Keep responses under 3 sentences. Use markdown for formatting.',
+  maxTokens: 200,
+  temperature: 0.7
+};
+
+// AUTH SYSTEM
+const Auth = {
+  getUsers() { try { return JSON.parse(localStorage.getItem('relay_users') || '[]'); } catch { return []; } },
+  getSession() { try { return JSON.parse(localStorage.getItem('relay_session') || 'null'); } catch { return null; } },
+  register(email, password, workspace, slug, useCase) {
+    const users = this.getUsers();
+    if (users.find(u => u.email === email)) return { error: 'An account with this email already exists.' };
+    const user = { id: 'user_' + Date.now(), email, password: btoa(password), workspace, slug, useCase, apiKey: 'rly_live_' + Math.random().toString(36).substring(2, 18), createdAt: new Date().toISOString() };
+    users.push(user);
+    localStorage.setItem('relay_users', JSON.stringify(users));
+    this.setSession(user);
+    return { user };
+  },
+  login(email, password) {
+    const users = this.getUsers();
+    const user = users.find(u => u.email === email && u.password === btoa(password));
+    if (!user) return { error: 'Invalid email or password.' };
+    this.setSession(user);
+    return { user };
+  },
+  setSession(user) {
+    const session = { id: user.id, email: user.email, workspace: user.workspace, slug: user.slug, apiKey: user.apiKey, createdAt: user.createdAt };
+    localStorage.setItem('relay_session', JSON.stringify(session));
+  },
+  logout() { localStorage.removeItem('relay_session'); navigate('landing'); showToast('Signed out successfully.', 'success'); updateNavAuthState(); },
+  isLoggedIn() { return !!this.getSession(); }
+};
+
+// ROUTER
+function navigate(view) {
+  if (view === 'app' && !Auth.isLoggedIn()) { view = 'login'; setTimeout(() => showToast('Please sign in to view your dashboard.', 'error'), 300); }
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const target = document.getElementById('view-' + view);
+  if (target) target.classList.add('active');
+  updateNavAuthState();
+  window.scrollTo(0, 0);
+  if (view === 'app') { populateDashboard(); setTimeout(animateCounters, 100); setTimeout(animateChartLines, 200); }
+  if (view === 'login') setTimeout(initAuthCanvas, 100);
+  if (view === 'register') setTimeout(initAuthCanvas2, 100);
+  closeMobileMenu();
+}
+function scrollToEl(id) { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function updateNavAuthState() {
+  const navAuth = document.getElementById('navAuth');
+  const navUser = document.getElementById('navUser');
+  if (Auth.isLoggedIn()) { navAuth.style.display = 'none'; navUser.style.display = 'flex'; } else { navAuth.style.display = 'flex'; navUser.style.display = 'none'; }
+}
+
+// CURSOR
+(function initCursor() {
+  const isTouch = matchMedia('(hover: none), (pointer: coarse)').matches;
+  if (isTouch) return;
+  const cur = document.getElementById('cursor');
+  const target = { x: 0, y: 0 };
+  const pos = { x: 0, y: 0 };
+  let hover = false;
+  let active = false;
+  document.addEventListener('mousemove', e => {
+    target.x = e.clientX; target.y = e.clientY;
+    if (!active) { active = true; cur.classList.add('visible'); document.body.classList.add('cursor-active'); }
+  });
+  document.addEventListener('mouseover', e => {
+    const t = e.target;
+    hover = !!(t.closest('a, button, input, textarea, label, .cap-row, .conv-card, .bot-card, .price-card, .dash-stat, .chat-suggestion, .app-nav-item, .conv-filter, .auth-sso-btn, .auth-back, .auth-magic, .app-logout, .nav-logo, .nav-menu-btn, .theme-toggle, .builder-node, .builder-tool, .notification-bell'));
+  });
+  document.addEventListener('mouseleave', () => { cur.classList.remove('visible'); document.body.classList.remove('cursor-active'); active = false; });
+  (function loop() {
+    pos.x += (target.x - pos.x) * 0.2; pos.y += (target.y - pos.y) * 0.2;
+    const scale = hover ? 3 : 1;
+    cur.style.transform = `translate(${pos.x - 6}px, ${pos.y - 6}px) scale(${scale})`;
+    requestAnimationFrame(loop);
+  })();
+})();
+
+// THEME TOGGLE
+function toggleTheme() {
+  const cur = document.documentElement.dataset.theme;
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem('relay_theme', next);
+  updateThemeIcon(next);
+}
+function updateThemeIcon(theme) {
+  const icons = document.querySelectorAll('#themeIcon, #themeToggle2 svg');
+  icons.forEach(icon => {
+    if (theme === 'light') icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+    else icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+  });
+}
+document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+document.getElementById('themeToggle2').addEventListener('click', toggleTheme);
+const savedTheme = localStorage.getItem('relay_theme');
+if (savedTheme) { document.documentElement.dataset.theme = savedTheme; updateThemeIcon(savedTheme); }
+
+// MOBILE MENU
+const mobileMenu = document.getElementById('mobileMenu');
+document.getElementById('menuBtn').addEventListener('click', () => mobileMenu.classList.toggle('open'));
+document.getElementById('menuBtn2').addEventListener('click', () => mobileMenu.classList.toggle('open'));
+function closeMobileMenu() { mobileMenu.classList.remove('open'); }
+function toggleSidebar() { document.getElementById('appSidebar').classList.toggle('open'); document.getElementById('sidebarOverlay').classList.toggle('show'); }
+
+// HERO SCRAMBLE
+(function scramble() {
+  const TARGET = 'AGENT INFRASTRUCTURE';
+  const CHARS = '!<>-_\\/[]{}—=+*^?#________01';
+  const el = document.getElementById('hero-title');
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = TARGET; return; }
+  let iter = 0; const max = TARGET.length * 7;
+  (function tick() {
+    el.textContent = TARGET.split('').map((ch, i) => i < iter / 7 ? TARGET[i] : (ch === ' ' ? ' ' : CHARS[Math.floor(Math.random() * CHARS.length)])).join('');
+    iter++;
+    if (iter >= max) { el.textContent = TARGET; return; }
+    setTimeout(tick, 38);
+  })();
+})();
+
+// COUNTERS & CHARTS
+function countUp(el) {
+  const target = parseFloat(el.dataset.count);
+  const decimal = parseInt(el.dataset.decimal || '0');
+  const suffix = el.dataset.suffix || '';
+  const dur = 1400; const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / dur, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const v = target * eased;
+    el.textContent = (decimal ? v.toFixed(decimal) : Math.floor(v).toLocaleString()) + suffix;
+    if (t < 1) requestAnimationFrame(tick);
+    else el.textContent = (decimal ? target.toFixed(decimal) : Math.floor(target).toLocaleString()) + suffix;
+  }
+  requestAnimationFrame(tick);
+}
+function animateCounters() {
+  document.querySelectorAll('#view-app.active [data-count]').forEach(el => { if (!el.dataset.animated) { countUp(el); el.dataset.animated = '1'; } });
+}
+function animateChartLines() {
+  document.querySelectorAll('#view-app.active .chart-line').forEach(line => {
+    const len = line.getTotalLength();
+    line.style.transition = 'none';
+    line.style.strokeDasharray = len;
+    line.style.strokeDashoffset = len;
+    line.getBoundingClientRect();
+    line.style.transition = 'stroke-dashoffset 1.5s ease-in-out';
+    line.style.strokeDashoffset = 0;
+  });
+}
+document.querySelectorAll('#view-landing [data-count]').forEach(el => {
+  const observer = new IntersectionObserver(([entry]) => {
+    if (entry.isIntersecting && !el.dataset.animated) { countUp(el); el.dataset.animated = '1'; observer.disconnect(); }
+  }, { threshold: 0.5 });
+  observer.observe(el);
+});
+
+// CHART TOOLTIPS
+function initChartTooltips() {
+  document.querySelectorAll('.chart-area').forEach(area => {
+    const svg = area.querySelector('svg');
+    const tooltip = area.querySelector('.chart-tooltip');
+    const path = area.querySelector('.chart-line');
+    if (!svg || !tooltip || !path) return;
+    
+    area.addEventListener('mousemove', e => {
+      const rect = svg.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const pathLen = path.getTotalLength();
+      const samplePoints = 20;
+      let closest = null;
+      
+      for (let i = 0; i <= samplePoints; i++) {
+        const pt = path.getPointAtLength((pathLen * i) / samplePoints);
+        const dist = Math.abs(pt.x - (x / rect.width) * 600);
+        if (!closest || dist < closest.dist) closest = { pt, dist };
+      }
+      
+      tooltip.style.left = (closest.pt.x / 600) * rect.width + 'px';
+      tooltip.style.top = (closest.pt.y / 200) * rect.height - 30 + 'px';
+      tooltip.style.opacity = 1;
+      tooltip.textContent = `Volume: ${Math.round(2000 - (closest.pt.y / 200) * 2000)}`;
+    });
+    area.addEventListener('mouseleave', () => { tooltip.style.opacity = 0; });
+  });
+}
+initChartTooltips();
+
+// CHATBOT (with Markdown streaming and Voice)
+const chatHistory = [];
+const MAX_HISTORY = 10;
+
+function parseMarkdown(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`(.*?)`/g, '<code>$1</code>')
+    .replace(/\n/g, '<br>');
+}
+
+async function streamText(element, text) {
+  let i = 0;
+  element.innerHTML = '';
+  return new Promise(resolve => {
+    const interval = setInterval(() => {
+      if (i >= text.length) { clearInterval(interval); resolve(); return; }
+      const chunk = text.substring(0, i + 2);
+      element.innerHTML = parseMarkdown(chunk) + '▌';
+      const body = document.getElementById('chatBody');
+      body.scrollTop = body.scrollHeight;
+      i += 2;
+    }, 15);
+  });
+}
+
+async function sendToChatbot(message) {
+  if (CHATBOT_CONFIG.apiEndpoint && CHATBOT_CONFIG.apiKey) {
+    try {
+      const body = {
+        model: CHATBOT_CONFIG.model,
+        messages: [{ role: 'system', content: CHATBOT_CONFIG.systemPrompt }, ...chatHistory.slice(-MAX_HISTORY).map(m => ({ role: m.role, content: m.content })), { role: 'user', content: message }],
+        max_tokens: CHATBOT_CONFIG.maxTokens,
+        temperature: CHATBOT_CONFIG.temperature
+      };
+      const res = await fetch(CHATBOT_CONFIG.apiEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${CHATBOT_CONFIG.apiKey}` }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      const data = await res.json();
+      if (data.choices && data.choices[0]) return data.choices[0].message.content;
+      if (data.content && data.content[0]) return data.content[0].text;
+      throw new Error('Unexpected API response format');
+    } catch (err) {
+      console.error('Chatbot API error:', err);
+      return 'I\'m having trouble connecting right now. Please try again in a moment.';
+    }
+  }
+  return getFallbackResponse(message);
+}
+
+function getFallbackResponse(input) {
+  const t = input.toLowerCase();
+  if (/^(hi|hello|hey|yo|sup|good (morning|afternoon|evening))\b/.test(t)) return "Hello — I'm a demo Relay agent. Ask me about **pricing**, **capabilities**, use cases, or the developer API.";
+  if (/price|pricing|cost|plan|tier|subscription|how much/.test(t)) return "Three tiers:\n• **Starter**: $0/mo, 1 bot, 1k convos\n• **Pro**: $89/mo, unlimited bots + analytics\n• **Enterprise**: custom, dedicated infra + SSO\n\nAnnual saves 20%.";
+  if (/capab|feature|what can|what do you do/.test(t)) return "Six primitives:\n1. Intent recognition (200+ built-in)\n2. Multilingual (42 languages)\n3. 7-state sentiment\n4. Human handoff\n5. Full analytics\n6. REST + WebSocket API with SDKs in 4 languages.";
+  if (/ecommerce|e-commerce|shop|store|retail|cart|order/.test(t)) return "For e-commerce: order tracking, returns, product Q&A, cart recovery. Median resolution `47s`, `12%` handoff rate. Top integrations: Shopify + Stripe.";
+  if (/api|developer|sdk|webhook|code|integration/.test(t)) return "Full REST API at `api.relay.ai/v1`. WebSocket streaming for live events. SDKs in TypeScript, Python, Go, Ruby. Webhooks fire on 17 event types.";
+  if (/build|start|try|sign|deploy|begin/.test(t)) return "Start free at /register — no credit card. Visual builder ships your first bot in 4-8 minutes. Or POST to /v1/bots with a training payload.";
+  return "I'm a demo agent trained on Relay's docs. Try asking about **pricing**, **capabilities**, e-commerce use cases, or the API. (Connect a real LLM via `CHATBOT_CONFIG` at the top of the script.)";
+}
+
+(function chatbot() {
+  const body = document.getElementById('chatBody');
+  const input = document.getElementById('chatInput');
+  const send = document.getElementById('chatSend');
+  const voiceBtn = document.getElementById('voiceBtn');
+
+  function addMsg(text, who) {
+    const msg = document.createElement('div');
+    msg.className = `msg ${who}`;
+    msg.innerHTML = `<div class="msg-avatar">${who === 'bot' ? 'R' : 'U'}</div><div class="msg-bubble"></div>`;
+    msg.querySelector('.msg-bubble').textContent = text;
+    body.appendChild(msg);
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function addThinking() {
+    const msg = document.createElement('div');
+    msg.className = 'msg bot thinking';
+    msg.id = 'thinkingMsg';
+    msg.innerHTML = `<div class="msg-avatar">R</div><div class="msg-bubble"><div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div></div>`;
+    body.appendChild(msg);
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function removeThinking() { document.getElementById('thinkingMsg')?.remove(); }
+
+  async function handleSend() {
+    const text = input.value.trim();
+    if (!text) return;
+    addMsg(text, 'user');
+    chatHistory.push({ role: 'user', content: text });
+    input.value = '';
+    addThinking();
+
+    const delay = CHATBOT_CONFIG.apiEndpoint ? 0 : 600;
+    setTimeout(async () => {
+      const response = await sendToChatbot(text);
+      chatHistory.push({ role: 'assistant', content: response });
+      removeThinking();
+      
+      const msg = document.createElement('div');
+      msg.className = 'msg bot';
+      msg.innerHTML = `<div class="msg-avatar">R</div><div class="msg-bubble"></div>`;
+      body.appendChild(msg);
+      body.scrollTop = body.scrollHeight;
+      await streamText(msg.querySelector('.msg-bubble'), response);
+      msg.querySelector('.msg-bubble').innerHTML = parseMarkdown(response);
+    }, delay);
+  }
+
+  send.addEventListener('click', handleSend);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') handleSend(); });
+
+  document.querySelectorAll('.chat-suggestion').forEach(btn => {
+    btn.addEventListener('click', () => { input.value = btn.dataset.prompt; handleSend(); });
+  });
+
+  // Voice Input
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+
+    recognition.onresult = e => {
+      input.value = e.results[0][0].transcript;
+      voiceBtn.classList.remove('recording');
+      handleSend();
+    };
+    recognition.onerror = () => voiceBtn.classList.remove('recording');
+    recognition.onend = () => voiceBtn.classList.remove('recording');
+
+    voiceBtn.addEventListener('click', () => {
+      if (voiceBtn.classList.contains('recording')) {
+        recognition.stop();
+      } else {
+        recognition.start();
+        voiceBtn.classList.add('recording');
+      }
+    });
+  } else {
+    voiceBtn.style.display = 'none';
+  }
+})();
+
+// LOGIN & REGISTER
+function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const errorBanner = document.getElementById('loginError');
+  const emailField = document.getElementById('loginEmailField');
+  const passField = document.getElementById('loginPassField');
+  emailField.classList.remove('error'); passField.classList.remove('error'); errorBanner.classList.remove('show');
+  let valid = true;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { emailField.classList.add('error'); valid = false; }
+  if (!password) { passField.classList.add('error'); valid = false; }
+  if (!valid) return;
+  const result = Auth.login(email, password);
+  if (result.error) { errorBanner.textContent = result.error; errorBanner.classList.add('show'); return; }
+  showToast(`Welcome back, ${email.split('@')[0]}.`, 'success');
+  setTimeout(() => navigate('app'), 400);
+}
+
+function ssoLogin(provider) {
+  const email = `demo+${provider.toLowerCase()}@relay.ai`;
+  let result = Auth.login(email, 'sso-demo-pass');
+  if (result.error) { result = Auth.register(email, 'sso-demo-pass', `${provider} Workspace`, `${provider.toLowerCase()}-ws`, 'other'); }
+  showToast(`Signed in with ${provider}.`, 'success');
+  setTimeout(() => navigate('app'), 400);
+}
+
+let regData = { email: '', password: '', workspace: '', slug: '', useCase: '' };
+
+function checkPassStrength(pass) {
+  const meter = document.getElementById('passStrength');
+  if (!meter) return;
+  let strength = 0;
+  if (pass.length >= 8) strength++;
+  if (pass.match(/[A-Z]/)) strength++;
+  if (pass.match(/[0-9]/)) strength++;
+  if (pass.match(/[^a-zA-Z0-9]/)) strength++;
+  meter.className = 'pass-strength';
+  if (strength <= 1) meter.classList.add('weak');
+  else if (strength <= 3) meter.classList.add('medium');
+  else if (strength === 4) meter.classList.add('strong');
+}
+document.getElementById('regPass')?.addEventListener('input', e => checkPassStrength(e.target.value));
+
+function regNext(step) {
+  if (step === 1) {
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPass').value;
+    const emailField = document.getElementById('regEmailField');
+    const passField = document.getElementById('regPassField');
+    const errorBanner = document.getElementById('regError');
+    emailField.classList.remove('error'); passField.classList.remove('error'); errorBanner.classList.remove('show');
+    let valid = true;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { emailField.classList.add('error'); valid = false; }
+    if (!password || password.length < 8) { passField.classList.add('error'); valid = false; }
+    if (!valid) return;
+    regData.email = email; regData.password = password;
+  }
+  if (step === 2) {
+    const ws = document.getElementById('regWorkspace').value.trim();
+    const slug = document.getElementById('regSlug').value.trim();
+    regData.workspace = ws || 'My Workspace';
+    regData.slug = slug || regData.workspace.toLowerCase().replace(/\s+/g, '-');
+  }
+  document.getElementById('regStep' + step).style.display = 'none';
+  document.getElementById('regStep' + (step + 1)).style.display = 'block';
+  document.getElementById('regStep').textContent = step + 1;
+  document.getElementById('step' + step).classList.remove('active');
+  document.getElementById('step' + step).classList.add('done');
+  document.getElementById('step' + (step + 1)).classList.add('active');
+  if (step === 1) {
+    document.getElementById('regTitle').textContent = 'Name your workspace.';
+    document.getElementById('regSub').textContent = 'This is where your bots and conversations live.';
+    document.getElementById('regWorkspace').value = regData.email.split('@')[0] + ' Workspace';
+    document.getElementById('regSlug').value = regData.email.split('@')[0].toLowerCase() + '-ws';
+  }
+  if (step === 2) {
+    document.getElementById('regTitle').textContent = 'What will your agent do?';
+    document.getElementById('regSub').textContent = 'We\'ll pre-configure your workspace with relevant templates.';
+  }
+}
+function regBack(step) {
+  document.getElementById('regStep' + step).style.display = 'none';
+  document.getElementById('regStep' + (step - 1)).style.display = 'block';
+  document.getElementById('regStep').textContent = step - 1;
+  document.getElementById('step' + step).classList.remove('active');
+  document.getElementById('step' + (step - 1)).classList.remove('done');
+  document.getElementById('step' + (step - 1)).classList.add('active');
+  if (step === 2) { document.getElementById('regTitle').textContent = 'Create your account.'; document.getElementById('regSub').textContent = 'Start free. No credit card required.'; }
+  if (step === 3) { document.getElementById('regTitle').textContent = 'Name your workspace.'; document.getElementById('regSub').textContent = 'This is where your bots and conversations live.'; }
+}
+function selectUseCase(e, useCase) {
+  regData.useCase = useCase;
+  document.querySelectorAll('#regStep3 .auth-sso-btn').forEach(b => b.style.borderColor = 'var(--line)');
+  e.currentTarget.style.borderColor = 'var(--accent)';
+}
+function handleRegister() {
+  if (!regData.useCase) regData.useCase = 'other';
+  const result = Auth.register(regData.email, regData.password, regData.workspace, regData.slug, regData.useCase);
+  if (result.error) { const errorBanner = document.getElementById('regError'); errorBanner.textContent = result.error; errorBanner.classList.add('show'); return; }
+  showToast(`Workspace created. Welcome to Relay, ${regData.email.split('@')[0]}.`, 'success');
+  setTimeout(() => navigate('app'), 600);
+}
+
+// DASHBOARD
+function populateDashboard() {
+  const session = Auth.getSession();
+  if (!session) return;
+  document.getElementById('wsName').textContent = session.workspace || 'My Workspace';
+  document.getElementById('userEmail').textContent = session.email;
+  document.getElementById('userAvatar').textContent = (session.email || 'U')[0].toUpperCase();
+  document.getElementById('settingsWsName').textContent = session.workspace || 'My Workspace';
+  document.getElementById('settingsWsSlug').textContent = session.slug || 'my-workspace';
+  document.getElementById('settingsEmail').textContent = session.email;
+  document.getElementById('settingsCreated').textContent = session.createdAt ? new Date(session.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
+  document.getElementById('apiKeyDisplay').textContent = session.apiKey ? session.apiKey.substring(0, 8) + '••••••••••••' + session.apiKey.substring(session.apiKey.length - 4) : 'rly_live_••••••••••••';
+  document.querySelectorAll('#view-app [data-count]').forEach(el => delete el.dataset.animated);
+  initBuilder();
+}
+
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.querySelectorAll('.app-nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector(`.app-nav-item[data-panel="${name}"]`)?.classList.add('active');
+  const titles = {
+    overview: ['Overview', 'Last 24 hours · live · refreshes every 5s'],
+    bots: ['Bots', 'Manage and deploy your conversational agents'],
+    builder: ['Bot Builder', 'Visual flow editor · drag to connect'],
+    conversations: ['Conversations', 'Live inbox · 23 unresolved'],
+    analytics: ['Analytics', 'Performance metrics · last 30 days'],
+    integrations: ['Integrations', 'Connect external services to your workspace'],
+    settings: ['Settings', 'Workspace, account, and API configuration']
+  };
+  const [title, sub] = titles[name] || ['Overview', ''];
+  document.getElementById('pageTitle').textContent = title;
+  document.getElementById('pageSub').textContent = sub;
+  if (name === 'overview') { setTimeout(animateCounters, 100); setTimeout(animateChartLines, 200); }
+  if (name === 'analytics') { setTimeout(animateChartLines, 200); }
+  if (name === 'builder') { setTimeout(initBuilder, 100); }
+  document.getElementById('appSidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+  window.scrollTo(0, 0);
+}
+
+document.querySelectorAll('.conv-filter').forEach(f => {
+  f.addEventListener('click', () => { document.querySelectorAll('.conv-filter').forEach(x => x.classList.remove('active')); f.classList.add('active'); });
+});
+
+function copyApiKey() {
+  const session = Auth.getSession();
+  if (session && session.apiKey) {
+    navigator.clipboard?.writeText(session.apiKey).then(() => showToast('API key copied to clipboard.', 'success')).catch(() => showToast('Could not copy. Key: ' + session.apiKey, 'success'));
+  }
+}
+
+// NOTIFICATIONS
+function toggleNotifications() { document.getElementById('notifDropdown').classList.toggle('show'); }
+document.addEventListener('click', e => {
+  if (!e.target.closest('#bellBtn') && !e.target.closest('#notifDropdown')) {
+    document.getElementById('notifDropdown')?.classList.remove('show');
+  }
+});
+
+// COMMAND PALETTE
+const cmdkCommands = [
+  { title: 'Go to Overview', cat: 'Navigation', icon: '□', action: () => showPanel('overview') },
+  { title: 'Go to Bots', cat: 'Navigation', icon: '○', action: () => showPanel('bots') },
+  { title: 'Go to Bot Builder', cat: 'Navigation', icon: '∑', action: () => showPanel('builder') },
+  { title: 'Go to Conversations', cat: 'Navigation', icon: '✉', action: () => showPanel('conversations') },
+  { title: 'Go to Analytics', cat: 'Navigation', icon: '⌐', action: () => showPanel('analytics') },
+  { title: 'Go to Settings', cat: 'Navigation', icon: '⚙', action: () => showPanel('settings') },
+  { title: 'Toggle Dark/Light Theme', cat: 'Actions', icon: '◐', action: () => toggleTheme() },
+  { title: 'Log out', cat: 'Actions', icon: '⏻', action: () => Auth.logout() },
+];
+
+function openCmdk() { document.getElementById('cmdkOverlay').classList.add('show'); document.getElementById('cmdkInput').value = ''; filterCmdk(); setTimeout(() => document.getElementById('cmdkInput').focus(), 50); }
+function closeCmdk() { document.getElementById('cmdkOverlay').classList.remove('show'); }
+function filterCmdk() {
+  const q = document.getElementById('cmdkInput').value.toLowerCase();
+  const results = document.getElementById('cmdkResults');
+  results.innerHTML = '';
+  let currentCat = '';
+  cmdkCommands.filter(c => c.title.toLowerCase().includes(q)).forEach(c => {
+    if (c.cat !== currentCat) { currentCat = c.cat; const catDiv = document.createElement('div'); catDiv.className = 'cmdk-category'; catDiv.textContent = c.cat; results.appendChild(catDiv); }
+    const item = document.createElement('div');
+    item.className = 'cmdk-item';
+    item.innerHTML = `<span style="width:16px;opacity:0.7">${c.icon}</span><span>${c.title}</span>`;
+    item.addEventListener('click', () => { c.action(); closeCmdk(); });
+    results.appendChild(item);
+  });
+}
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('cmdkOverlay').classList.contains('show') ? closeCmdk() : openCmdk(); }
+  if (e.key === 'Escape') closeCmdk();
+});
+
+// PRICING
+document.querySelectorAll('.pricing-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pricing-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const billing = btn.dataset.billing;
+    document.querySelectorAll('[data-price-monthly]').forEach(el => { el.textContent = billing === 'annual' ? el.dataset.priceAnnual : el.dataset.priceMonthly; });
+  });
+});
+
+// TOAST
+function showToast(msg, type = '') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show ' + type;
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+// AUTH CANVAS
+function initAuthCanvas() { const canvas = document.getElementById('authCanvas'); if (!canvas || canvas.dataset.init) return; canvas.dataset.init = '1'; runParticles(canvas); }
+function initAuthCanvas2() { const canvas = document.getElementById('authCanvas2'); if (!canvas || canvas.dataset.init) return; canvas.dataset.init = '1'; runParticles(canvas); }
+
+function runParticles(canvas) {
+  const ctx = canvas.getContext('2d');
+  let w, h, particles = [];
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  function resize() { const r = canvas.getBoundingClientRect(); w = canvas.width = r.width * dpr; h = canvas.height = r.height * dpr; }
+  resize(); window.addEventListener('resize', resize);
+  for (let i = 0; i < 50; i++) { particles.push({ x: Math.random() * w, y: Math.random() * h, vx: (Math.random() - 0.5) * 0.3 * dpr, vy: (Math.random() - 0.5) * 0.3 * dpr, r: (Math.random() * 1.2 + 0.3) * dpr }); }
+  let running = true;
+  const io = new IntersectionObserver(([e]) => { running = e.isIntersecting; if (running) draw(); }, { threshold: 0.05 });
+  io.observe(canvas);
+  function draw() {
+    if (!running) return;
+    ctx.clearRect(0, 0, w, h);
+    const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    particles.forEach(p => { p.x += p.vx; p.y += p.vy; if (p.x < 0 || p.x > w) p.vx *= -1; if (p.y < 0 || p.y > h) p.vy *= -1; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fillStyle = accentColor; ctx.globalAlpha = 0.4 + (p.r / dpr) * 0.3; ctx.fill(); });
+    ctx.globalAlpha = 1;
+    for (let i = 0; i < particles.length; i++) { for (let j = i + 1; j < particles.length; j++) { const dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y; const d = Math.sqrt(dx * dx + dy * dy), maxD = 120 * dpr; if (d < maxD) { ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y); ctx.strokeStyle = accentColor; ctx.globalAlpha = 0.12 * (1 - d / maxD); ctx.lineWidth = dpr * 0.5; ctx.stroke(); } } }
+    ctx.globalAlpha = 1;
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// LIVE FEED
+const feedMessages = [
+  { bot: 'SUPPORT', msg: 'where is my order #4821' }, { bot: 'SALES', msg: 'do you have educational pricing' },
+  { bot: 'IT-HELP', msg: 'reset my SSO password' }, { bot: 'BOOKING', msg: 'schedule appt next tuesday' },
+  { bot: 'SUPPORT', msg: 'refund for order #3390' }, { bot: 'SALES', msg: 'enterprise plan SLA details' },
+  { bot: 'SUPPORT', msg: 'how to export conversation logs' }
+];
+setInterval(() => {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const feed = document.getElementById('liveFeed');
+  if (!feed || !document.getElementById('view-app').classList.contains('active')) return;
+  if (!document.getElementById('panel-overview').classList.contains('active')) return;
+  const m = feedMessages[Math.floor(Math.random() * feedMessages.length)];
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  item.innerHTML = `<span class="feed-bot">${m.bot}</span><span class="feed-msg">${m.msg}</span><span class="feed-time">just now</span>`;
+  feed.insertBefore(item, feed.firstChild);
+  while (feed.children.length > 8) feed.removeChild(feed.lastChild);
+}, 5000);
+
+// BOT BUILDER (Drag & Drop + SVG connections)
+function initBuilder() {
+  const canvas = document.getElementById('builderCanvas');
+  const svg = document.getElementById('builderSvg');
+  if (!canvas || canvas.dataset.init) return;
+  canvas.dataset.init = '1';
+
+  const nodes = canvas.querySelectorAll('.builder-node');
+  const connections = [
+    { from: 1, to: 2 }, { from: 2, to: 3 }, { from: 2, to: 4 }, { from: 3, to: 5 }
+  ];
+
+  function drawConnections() {
+    svg.innerHTML = '';
+    const canvasRect = canvas.getBoundingClientRect();
+    svg.setAttribute('viewBox', `0 0 ${canvasRect.width} ${canvasRect.height}`);
+    
+    connections.forEach(conn => {
+      const n1 = canvas.querySelector(`.builder-node[data-id="${conn.from}"]`);
+      const n2 = canvas.querySelector(`.builder-node[data-id="${conn.to}"]`);
+      if (!n1 || !n2) return;
+      
+      const r1 = n1.getBoundingClientRect();
+      const r2 = n2.getBoundingClientRect();
+      
+      const x1 = (r1.right - canvasRect.left);
+      const y1 = (r1.top + r1.height/2 - canvasRect.top);
+      const x2 = (r2.left - canvasRect.left);
+      const y2 = (r2.top + r2.height/2 - canvasRect.top);
+      
+      const dx = Math.abs(x2 - x1) * 0.5;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`);
+      path.setAttribute('class', 'path-line');
+      svg.appendChild(path);
+    });
+  }
+
+  nodes.forEach(node => {
+    let isDragging = false;
+    let offsetX, offsetY;
+    
+    node.addEventListener('mousedown', e => {
+      isDragging = true;
+      const rect = node.getBoundingClientRect();
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
+      node.style.zIndex = 10;
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      const canvasRect = canvas.getBoundingClientRect();
+      let x = e.clientX - offsetX - canvasRect.left;
+      let y = e.clientY - offsetY - canvasRect.top;
+      x = Math.max(0, Math.min(x, canvasRect.width - node.offsetWidth));
+      y = Math.max(0, Math.min(y, canvasRect.height - node.offsetHeight));
+      node.style.left = x + 'px';
+      node.style.top = y + 'px';
+      drawConnections();
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) { isDragging = false; node.style.zIndex = 2; }
+    });
+  });
+
+  drawConnections();
+  window.addEventListener('resize', drawConnections);
+}
+
+// MAGNETIC BUTTONS
+document.querySelectorAll('.magnetic').forEach(btn => {
+  btn.addEventListener('mousemove', e => {
+    const rect = btn.getBoundingClientRect();
+    const x = e.clientX - rect.left - rect.width / 2;
+    const y = e.clientY - rect.top - rect.height / 2;
+    btn.style.transform = `translate(${x * 0.2}px, ${y * 0.3}px)`;
+  });
+  btn.addEventListener('mouseleave', () => { btn.style.transform = 'translate(0, 0)'; });
+});
+
+// INIT
+updateNavAuthState();
+</script>
+</body>
+</html>
