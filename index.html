@@ -936,12 +936,14 @@ input, textarea { font-family: inherit; }
 // ═══════════════════════════════════════════════════════════════
 // BACKEND API CONFIGURATION
 // ═══════════════════════════════════════════════════════════════
-const API_BASE_URL = 'https://relay-backend-jvbo.onrender.com'; // <-- PASTE YOUR RENDER URL HERE
+const API_BASE_URL = 'https://relay-backend-jvbo.onrender.com'; // <-- Your Render URL
 
 const CHATBOT_CONFIG = {
+  // Secure route for logged-in users
   apiEndpoint: `${API_BASE_URL}/v1/chat/completions`,
-  apiKey: 'a_person_who_knows_my_name_is_a_person_who_knows_me_xd_i_want_to_be_a_superstar_on_la', 
-  model: 'gemini-flash-latest', // Or whatever Gemini model you are using
+  // Public route for the landing page demo
+  publicEndpoint: `${API_BASE_URL}/api/public/demo-chat`, 
+  model: 'gemini-flash_latest',
   systemPrompt: 'You are a helpful assistant for Relay, an AI chatbot platform. Answer questions about pricing, capabilities, and use cases concisely. Keep responses under 3 sentences. Use markdown for formatting.',
   maxTokens: 1500,
   temperature: 0.7
@@ -1187,10 +1189,12 @@ async function streamText(element, text) {
 }
 
 async function sendToChatbot(message) {
-  if (CHATBOT_CONFIG.apiEndpoint) {
+  // Determine if we should use the authenticated route or the public demo route
+  const token = Auth.getToken();
+  const endpoint = token ? CHATBOT_CONFIG.apiEndpoint : CHATBOT_CONFIG.publicEndpoint;
+
+  if (endpoint) {
     try {
-      const token = Auth.getToken(); // Get the real JWT
-      
       const body = {
         model: CHATBOT_CONFIG.model,
         messages: [
@@ -1202,19 +1206,24 @@ async function sendToChatbot(message) {
         temperature: CHATBOT_CONFIG.temperature
       };
 
-      const res = await fetch(CHATBOT_CONFIG.apiEndpoint, {
+      const headers = { 'Content-Type': 'application/json' };
+      // Only attach the token if we are using the secure route
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` // Send the JWT token!
-        },
+        headers: headers,
         body: JSON.stringify(body)
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `API returned ${res.status}`);
+        const errorMsg = errData.error?.message || errData.error || `API returned ${res.status}`;
+        throw new Error(errorMsg);
       }
+      
       const data = await res.json();
 
       if (data.choices && data.choices[0]) return data.choices[0].message.content;
@@ -1222,7 +1231,7 @@ async function sendToChatbot(message) {
       throw new Error('Unexpected API response format');
     } catch (err) {
       console.error('Chatbot API error:', err);
-      return `I'm having trouble connecting right now. (${err.message})`;
+      return `Error: ${err.message}`; 
     }
   }
   return getFallbackResponse(message);
