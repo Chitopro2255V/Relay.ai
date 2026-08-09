@@ -1189,33 +1189,40 @@ async function streamText(element, text) {
 async function sendToChatbot(message) {
   if (CHATBOT_CONFIG.apiEndpoint) {
     try {
+      const token = Auth.getToken(); // Get the real JWT
+      
       const body = {
         model: CHATBOT_CONFIG.model,
         messages: [
-          { role: 'system', content: CHATBOT_CONFIG.systemPrompt }, 
-          ...chatHistory.slice(-MAX_HISTORY).map(m => ({ role: m.role, content: m.content })), 
+          { role: 'system', content: CHATBOT_CONFIG.systemPrompt },
+          ...chatHistory.slice(-MAX_HISTORY).map(m => ({ role: m.role, content: m.content })),
           { role: 'user', content: message }
         ],
         max_tokens: CHATBOT_CONFIG.maxTokens,
         temperature: CHATBOT_CONFIG.temperature
       };
 
-      const res = await fetch(CHATBOT_CONFIG.apiEndpoint, { 
-        method: 'POST', 
-        headers: { 
-          'Content-Type': 'application/json' 
-        }, 
-        body: JSON.stringify(body) 
+      const res = await fetch(CHATBOT_CONFIG.apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // Send the JWT token!
+        },
+        body: JSON.stringify(body)
       });
 
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `API returned ${res.status}`);
+      }
       const data = await res.json();
+
       if (data.choices && data.choices[0]) return data.choices[0].message.content;
       if (data.content && data.content[0]) return data.content[0].text;
       throw new Error('Unexpected API response format');
     } catch (err) {
       console.error('Chatbot API error:', err);
-      return 'I\'m having trouble connecting right now. Please try again in a moment.';
+      return `I'm having trouble connecting right now. (${err.message})`;
     }
   }
   return getFallbackResponse(message);
@@ -1319,27 +1326,50 @@ function getFallbackResponse(input) {
 })();
 
 // LOGIN & REGISTER
-function handleLogin() {
+async function handleLogin() {
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPass').value;
   const errorBanner = document.getElementById('loginError');
   const emailField = document.getElementById('loginEmailField');
   const passField = document.getElementById('loginPassField');
-  emailField.classList.remove('error'); passField.classList.remove('error'); errorBanner.classList.remove('show');
+
+  emailField.classList.remove('error');
+  passField.classList.remove('error');
+  errorBanner.classList.remove('show');
+
   let valid = true;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { emailField.classList.add('error'); valid = false; }
   if (!password) { passField.classList.add('error'); valid = false; }
   if (!valid) return;
-  const result = Auth.login(email, password);
-  if (result.error) { errorBanner.textContent = result.error; errorBanner.classList.add('show'); return; }
+
+  showToast('Signing in...', '');
+  const result = await Auth.login(email, password);
+  
+  if (result.error) {
+    errorBanner.textContent = result.error;
+    errorBanner.classList.add('show');
+    return;
+  }
+
   showToast(`Welcome back, ${email.split('@')[0]}.`, 'success');
   setTimeout(() => navigate('app'), 400);
 }
 
-function ssoLogin(provider) {
+async function ssoLogin(provider) {
   const email = `demo+${provider.toLowerCase()}@relay.ai`;
-  let result = Auth.login(email, 'sso-demo-pass');
-  if (result.error) { result = Auth.register(email, 'sso-demo-pass', `${provider} Workspace`, `${provider.toLowerCase()}-ws`, 'other'); }
+  showToast(`Signing in with ${provider}...`, '');
+  
+  // Try to login first, if fails, register
+  let result = await Auth.login(email, 'sso-demo-pass');
+  if (result.error) {
+    result = await Auth.register(email, 'sso-demo-pass', `${provider} Workspace`, `${provider.toLowerCase()}-ws`, 'other');
+  }
+  
+  if (result.error) {
+    showToast(result.error, 'error');
+    return;
+  }
+  
   showToast(`Signed in with ${provider}.`, 'success');
   setTimeout(() => navigate('app'), 400);
 }
@@ -1413,10 +1443,19 @@ function selectUseCase(e, useCase) {
   document.querySelectorAll('#regStep3 .auth-sso-btn').forEach(b => b.style.borderColor = 'var(--line)');
   e.currentTarget.style.borderColor = 'var(--accent)';
 }
-function handleRegister() {
+async function handleRegister() {
   if (!regData.useCase) regData.useCase = 'other';
-  const result = Auth.register(regData.email, regData.password, regData.workspace, regData.slug, regData.useCase);
-  if (result.error) { const errorBanner = document.getElementById('regError'); errorBanner.textContent = result.error; errorBanner.classList.add('show'); return; }
+  showToast('Creating workspace...', '');
+  
+  const result = await Auth.register(regData.email, regData.password, regData.workspace, regData.slug, regData.useCase);
+  
+  if (result.error) {
+    const errorBanner = document.getElementById('regError');
+    errorBanner.textContent = result.error;
+    errorBanner.classList.add('show');
+    return;
+  }
+  
   showToast(`Workspace created. Welcome to Relay, ${regData.email.split('@')[0]}.`, 'success');
   setTimeout(() => navigate('app'), 600);
 }
