@@ -283,7 +283,7 @@ input, textarea { font-family: inherit; }
 
 /* DASHBOARD APP */
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 240px 1fr; padding-top: 0; }
-.app-sidebar { border-right: 1px solid var(--line-soft); background: var(--bg-card); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.app-sidebar { border-right: 1px solid var(--line-soft); background: var(--bg-card); display: flex; flex-direction: column; position: sticky; top: 68px; height: calc(100vh - 68px); overflow-y: auto; }
 .app-sidebar-head { padding: 1.25rem; border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; justify-content: space-between; }
 .app-workspace { padding: 1rem 1.25rem; border-bottom: 1px solid var(--line-soft); }
 .app-workspace-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-mute); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.35rem; }
@@ -305,7 +305,7 @@ input, textarea { font-family: inherit; }
 .app-logout:hover { color: var(--error); }
 .app-logout svg { width: 14px; height: 14px; }
 
-.app-main { padding: 2rem; overflow-x: hidden; background: var(--bg); background-image: radial-gradient(circle, var(--line-soft) 1px, transparent 1px); background-size: 24px 24px; }
+.app-main { padding: 6rem 2rem 2rem; overflow-x: hidden; background: var(--bg); background-image: radial-gradient(circle, var(--line-soft) 1px, transparent 1px); background-size: 24px 24px; }
 .app-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--line-soft); }
 .app-topbar h1 { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.5rem; letter-spacing: -0.02em; }
 .app-topbar-sub { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-mute); letter-spacing: 0.05em; margin-top: 2px; }
@@ -456,7 +456,7 @@ input, textarea { font-family: inherit; }
   .auth-view { grid-template-columns: 1fr; }
   .auth-visual { display: none; }
   .app-shell { grid-template-columns: 1fr; }
-  .app-sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; z-index: 200; transform: translateX(-100%); transition: transform 300ms var(--ease-quiet); }
+  .app-sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; z-index: 200; transform: translateX(-100%); transition: transform 300ms var(--ease-quiet); height: 100vh}
   .app-sidebar.open { transform: translateX(0); }
   .app-sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 199; display: none; }
   .app-sidebar-overlay.show { display: block; }
