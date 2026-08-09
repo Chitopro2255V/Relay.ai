@@ -933,42 +933,75 @@ input, textarea { font-family: inherit; }
 <div class="toast" id="toast"></div>
 
 <script>
-// CHATBOT API CONFIG
+// ═══════════════════════════════════════════════════════════════
+// BACKEND API CONFIGURATION
+// ═══════════════════════════════════════════════════════════════
+const API_BASE_URL = 'https://relay-backend-jvbo.onrender.com'; // <-- PASTE YOUR RENDER URL HERE
+
 const CHATBOT_CONFIG = {
-  apiEndpoint: 'https://relay-backend-jvbo.onrender.com/v1/chat/completions',        
-  apiKey: '',             
-  model: 'gemini-flash-latest',              
+  apiEndpoint: `${API_BASE_URL}/v1/chat/completions`,
+  apiKey: 'dummy_token_will_be_replaced_by_jwt', 
+  model: 'gemini-flash-latest', // Or whatever Gemini model you are using
   systemPrompt: 'You are a helpful assistant for Relay, an AI chatbot platform. Answer questions about pricing, capabilities, and use cases concisely. Keep responses under 3 sentences. Use markdown for formatting.',
-  maxTokens: 1500,
+  maxTokens: 200,
   temperature: 0.7
 };
 
-// AUTH SYSTEM
+// ═══════════════════════════════════════════════════════════════
+// AUTH SYSTEM (Now connected to real backend!)
+// ═══════════════════════════════════════════════════════════════
 const Auth = {
-  getUsers() { try { return JSON.parse(localStorage.getItem('relay_users') || '[]'); } catch { return []; } },
-  getSession() { try { return JSON.parse(localStorage.getItem('relay_session') || 'null'); } catch { return null; } },
-  register(email, password, workspace, slug, useCase) {
-    const users = this.getUsers();
-    if (users.find(u => u.email === email)) return { error: 'An account with this email already exists.' };
-    const user = { id: 'user_' + Date.now(), email, password: btoa(password), workspace, slug, useCase, apiKey: 'rly_live_' + Math.random().toString(36).substring(2, 18), createdAt: new Date().toISOString() };
-    users.push(user);
-    localStorage.setItem('relay_users', JSON.stringify(users));
-    this.setSession(user);
-    return { user };
+  getToken() { return localStorage.getItem('relay_jwt'); },
+  getSession() { 
+    try { return JSON.parse(localStorage.getItem('relay_session') || 'null'); } 
+    catch { return null; } 
   },
-  login(email, password) {
-    const users = this.getUsers();
-    const user = users.find(u => u.email === email && u.password === btoa(password));
-    if (!user) return { error: 'Invalid email or password.' };
-    this.setSession(user);
-    return { user };
+  
+  async register(email, password, workspace, slug, useCase) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, workspace, slug, useCase })
+      });
+      const data = await res.json();
+      if (!res.ok) return { error: data.error || 'Registration failed' };
+      
+      localStorage.setItem('relay_jwt', data.token);
+      localStorage.setItem('relay_session', JSON.stringify(data.user));
+      return { user: data.user };
+    } catch (err) {
+      return { error: 'Network error. Is the backend running?' };
+    }
   },
-  setSession(user) {
-    const session = { id: user.id, email: user.email, workspace: user.workspace, slug: user.slug, apiKey: user.apiKey, createdAt: user.createdAt };
-    localStorage.setItem('relay_session', JSON.stringify(session));
+
+  async login(email, password) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) return { error: data.error || 'Login failed' };
+      
+      localStorage.setItem('relay_jwt', data.token);
+      localStorage.setItem('relay_session', JSON.stringify(data.user));
+      return { user: data.user };
+    } catch (err) {
+      return { error: 'Network error. Is the backend running?' };
+    }
   },
-  logout() { localStorage.removeItem('relay_session'); navigate('landing'); showToast('Signed out successfully.', 'success'); updateNavAuthState(); },
-  isLoggedIn() { return !!this.getSession(); }
+
+  logout() {
+    localStorage.removeItem('relay_jwt');
+    localStorage.removeItem('relay_session');
+    navigate('landing');
+    showToast('Signed out successfully.', 'success');
+    updateNavAuthState();
+  },
+  
+  isLoggedIn() { return !!this.getToken(); }
 };
 
 // ROUTER
