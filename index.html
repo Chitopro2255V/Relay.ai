@@ -1006,6 +1006,29 @@ const Auth = {
   isLoggedIn() { return !!this.getToken(); }
 };
 
+// --- API Helper ---
+async function apiFetch(endpoint, method = 'GET', body = null) {
+  const token = Auth.getToken();
+  if (!token) throw new Error('Not authenticated');
+  
+  const headers = { 
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}` 
+  };
+  
+  const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : null
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || 'API request failed');
+  }
+  return res.json();
+}
+
 // ROUTER
 function navigate(view) {
   if (view === 'app' && !Auth.isLoggedIn()) { view = 'login'; setTimeout(() => showToast('Please sign in to view your dashboard.', 'error'), 300); }
@@ -1505,9 +1528,42 @@ function showPanel(name) {
   if (name === 'overview') { setTimeout(animateCounters, 100); setTimeout(animateChartLines, 200); }
   if (name === 'analytics') { setTimeout(animateChartLines, 200); }
   if (name === 'builder') { setTimeout(initBuilder, 100); }
+  
+  // --- NEW: Fetch real bots from DB ---
+  if (name === 'bots') { setTimeout(loadBots, 100); }
+  
   document.getElementById('appSidebar').classList.remove('open');
   document.getElementById('sidebarOverlay').classList.remove('show');
   window.scrollTo(0, 0);
+}
+
+// --- NEW: Function to load bots from backend ---
+async function loadBots() {
+  const listContainer = document.querySelector('#panel-bots .bots-list');
+  if (!listContainer) return;
+  listContainer.innerHTML = '<div style="color: var(--text-mute);">Loading bots...</div>';
+  
+  try {
+    const bots = await apiFetch('/api/bots', 'GET');
+    if (bots.length === 0) {
+      listContainer.innerHTML = '<div style="color: var(--text-mute);">No bots yet. Create your first one!</div>';
+      return;
+    }
+    
+    listContainer.innerHTML = bots.map(bot => `
+      <div class="bot-card" onclick="showPanel('builder')">
+        <div class="bot-icon">${bot.name.substring(0, 2).toUpperCase()}</div>
+        <div>
+          <div class="bot-info-name">${bot.name}</div>
+          <div class="bot-info-meta">${bot.id} · ${bot.status}</div>
+        </div>
+        <div class="bot-status ${bot.status === 'online' ? 'online' : 'draft'}">${bot.status}</div>
+        <button class="btn btn-sm">Manage →</button>
+      </div>
+    `).join('');
+  } catch (err) {
+    listContainer.innerHTML = `<div style="color: var(--error);">${err.message}</div>`;
+  }
 }
 
 document.querySelectorAll('.conv-filter').forEach(f => {
@@ -1629,7 +1685,9 @@ setInterval(() => {
 }, 5000);
 
 // BOT BUILDER (Drag & Drop + SVG connections)
-function initBuilder() {
+let currentBotId = null; // We need to track which bot we are editing
+
+async function initBuilder() {
   const canvas = document.getElementById('builderCanvas');
   const svg = document.getElementById('builderSvg');
   if (!canvas || canvas.dataset.init) return;
@@ -1697,6 +1755,50 @@ function initBuilder() {
 
   drawConnections();
   window.addEventListener('resize', drawConnections);
+  
+  // --- NEW: Hook up the Save Button ---
+  const saveBtn = document.querySelector('#panel-builder .builder-tool:nth-child(3)'); // "Save draft" button
+  if (saveBtn) {
+    saveBtn.onclick = handleSaveBot;
+  }
+}
+
+// --- NEW: Function to gather nodes and save to backend ---
+async function handleSaveBot() {
+  showToast('Saving bot...', '');
+  const canvas = document.getElementById('builderCanvas');
+  const nodes = canvas.querySelectorAll('.builder-node');
+  
+  // 1. Gather the visual state from the DOM
+  const flowData = {
+    nodes: Array.from(nodes).map(node => ({
+      id: node.dataset.id,
+      x: parseInt(node.style.left),
+      y: parseInt(node.style.top),
+      title: node.querySelector('.node-title').textContent,
+      type: node.querySelector('.node-type').textContent
+    })),
+    edges: [{ from: 1, to: 2 }, { from: 2, to: 3 }, { from: 2, to: 4 }, { from: 3, to: 5 }] // hardcoded for now
+  };
+
+  try {
+    // 2. If we don't have a bot ID yet, create a new bot first
+    if (!currentBotId) {
+      const newBot = await apiFetch('/api/bots', 'POST', { name: 'Storefront Support' });
+      currentBotId = newBot.id;
+    }
+
+    // 3. Save the flow data to the bot
+    await apiFetch(`/api/bots/${currentBotId}`, 'PUT', {
+      name: 'Storefront Support',
+      status: 'draft',
+      flow_data: flowData
+    });
+
+    showToast('Bot saved successfully!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
 // MAGNETIC BUTTONS
