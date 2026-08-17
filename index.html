@@ -905,17 +905,39 @@ input, textarea { font-family: inherit; }
 
       <div class="panel" id="panel-integrations">
         <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.75rem">
+          
+          <!-- Slack -->
           <div class="dash-card" style="padding:1.25rem"><div style="display:flex;justify-content:space-between;margin-bottom:0.75rem"><div class="bot-icon" style="width:32px;height:32px;font-size:11px">SL</div><span class="bot-status online">Connected</span></div><div style="font-weight:600;font-size:14px;margin-bottom:0.2rem">Slack</div><div style="font-size:12px;color:var(--text-mute);margin-bottom:0.75rem">Handoff notifications, daily summaries</div><button class="btn btn-sm btn-block">Manage</button></div>
+          
+          <!-- Zendesk -->
           <div class="dash-card" style="padding:1.25rem"><div style="display:flex;justify-content:space-between;margin-bottom:0.75rem"><div class="bot-icon" style="width:32px;height:32px;font-size:11px">ZD</div><span class="bot-status online">Connected</span></div><div style="font-weight:600;font-size:14px;margin-bottom:0.2rem">Zendesk</div><div style="font-size:12px;color:var(--text-mute);margin-bottom:0.75rem">Auto-create tickets on escalation</div><button class="btn btn-sm btn-block">Manage</button></div>
+          
+          <!-- Shopify -->
           <div class="dash-card" style="padding:1.25rem"><div style="display:flex;justify-content:space-between;margin-bottom:0.75rem"><div class="bot-icon" style="width:32px;height:32px;font-size:11px">SH</div><span class="bot-status online">Connected</span></div><div style="font-weight:600;font-size:14px;margin-bottom:0.2rem">Shopify</div><div style="font-size:12px;color:var(--text-mute);margin-bottom:0.75rem">Order lookup, refund initiation</div><button class="btn btn-sm btn-block">Manage</button></div>
+          
+          <!-- Messenger -->
           <div class="dash-card" style="padding:1.25rem"><div style="display:flex;justify-content:space-between;margin-bottom:0.75rem"><div class="bot-icon" style="width:32px;height:32px;font-size:11px">FB</div><span class="bot-status draft">Available</span></div><div style="font-weight:600;font-size:14px;margin-bottom:0.2rem">Messenger</div><div style="font-size:12px;color:var(--text-mute);margin-bottom:0.75rem">Connect a Facebook page via OAuth</div><button class="btn btn-sm btn-block btn-primary magnetic">Connect</button></div>
+          
+          <!-- NEW: Custom Webhook Card -->
+          <div class="dash-card" style="padding:1.25rem; border-color: var(--accent-soft);">
+            <div style="display:flex;justify-content:space-between;margin-bottom:0.75rem">
+              <div class="bot-icon" style="width:32px;height:32px;font-size:11px">{ }</div>
+              <span class="bot-status online">Active</span>
+            </div>
+            <div style="font-weight:600;font-size:14px;margin-bottom:0.2rem">Custom Webhook</div>
+            <div style="font-size:12px;color:var(--text-mute);margin-bottom:0.75rem">Your unique inbound URL</div>
+            <!-- This is the code tag that the JS will target -->
+            <code style="display:block; padding:0.5rem; background:var(--bg-elev); border:1px solid var(--line-soft); word-break:break-all; font-size:10px; color:var(--text-soft);">Loading...</code>
+            <button class="btn btn-sm btn-block" style="margin-top:0.5rem" onclick="copyWebhook()">Copy URL</button>
+          </div>
+      
         </div>
       </div>
 
       <div class="panel" id="panel-settings">
         <div class="settings-section"><h3>Workspace</h3><div class="settings-row"><div class="settings-label">Workspace name</div><div class="settings-value" id="settingsWsName">—</div></div><div class="settings-row"><div class="settings-label">Workspace slug</div><div class="settings-value" id="settingsWsSlug">—</div></div><div class="settings-row"><div class="settings-label">Plan</div><div class="settings-value">Pro · $89/mo · <a href="#" style="color:var(--accent)" onclick="showToast('Manage billing in the full dashboard.', 'success')">Manage billing</a></div></div><div class="settings-row"><div class="settings-label">Created</div><div class="settings-value" id="settingsCreated">—</div></div></div>
         <div class="settings-section"><h3>Account</h3><div class="settings-row"><div class="settings-label">Email</div><div class="settings-value" id="settingsEmail">—</div></div><div class="settings-row"><div class="settings-label">Role</div><div class="settings-value">Owner / Admin</div></div><div class="settings-row"><div class="settings-label">Password</div><div class="settings-value"><a href="#" style="color:var(--accent)" onclick="showToast('Password reset link sent.', 'success')">Change password →</a></div></div></div>
-        <div class="settings-section"><h3>API Keys</h3><div class="settings-row"><div class="settings-label">Production key</div><div class="settings-value"><div class="api-key-row"><code id="apiKeyDisplay">rly_live_••••••••••••••••3f9a</code><button class="btn btn-sm" onclick="copyApiKey()">Copy</button><button class="btn btn-sm" onclick="showToast('API key regenerated. Old key is now invalid.', 'success')">Regenerate</button></div></div></div><div class="settings-row"><div class="settings-label">Test key</div><div class="settings-value"><div class="api-key-row"><code>rly_test_••••••••••••••••2a8e</code><button class="btn btn-sm">Copy</button></div></div></div></div>
+        <div class="settings-section"><h3>API Keys</h3><div class="settings-row"><div class="settings-label">Production key</div><div class="settings-value"><div class="api-key-row"><code id="apiKeyDisplay">rly_live_••••••••••••••••3f9a</code><button class="btn btn-sm" onclick="copyApiKey()">Copy</button><button class="btn btn-sm" onclick="regenerateApiKey()">Regenerate</button></div></div></div><div class="settings-row"><div class="settings-label">Test key</div><div class="settings-value"><div class="api-key-row"><code>rly_test_••••••••••••••••2a8e</code><button class="btn btn-sm">Copy</button></div></div></div></div>
         <div class="settings-section"><h3>Team Members</h3><div class="settings-row"><div class="settings-label">You</div><div class="settings-value">Owner · full access</div></div><div class="settings-row"><div class="settings-label">Invited</div><div class="settings-value">0 members · <a href="#" style="color:var(--accent)" onclick="showToast('Invite link copied to clipboard.', 'success')">Invite teammates →</a></div></div></div>
       </div>
     </main>
@@ -1638,6 +1660,15 @@ async function loadIntegrations() {
   }
 }
 
+function copyWebhook() {
+  const codeEl = document.querySelector('#panel-integrations code');
+  if (codeEl) {
+    navigator.clipboard.writeText(codeEl.textContent).then(() => {
+      showToast('Webhook URL copied to clipboard!', 'success');
+    });
+  }
+}
+  
 // --- NEW: API Key Regenerator ---
 async function regenerateApiKey() {
   if (!confirm('Are you sure? Your old API key will stop working immediately.')) return;
