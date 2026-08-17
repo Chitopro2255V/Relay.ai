@@ -1269,54 +1269,72 @@ async function streamText(element, text) {
 }
 
 async function sendToChatbot(message) {
-  // Determine if we should use the authenticated route or the public demo route
   const token = Auth.getToken();
   const endpoint = token ? CHATBOT_CONFIG.apiEndpoint : CHATBOT_CONFIG.publicEndpoint;
 
   if (endpoint) {
-    try {
-      const body = {
-        model: CHATBOT_CONFIG.model,
-        messages: [
-          { role: 'system', content: CHATBOT_CONFIG.systemPrompt },
-          ...chatHistory.slice(-MAX_HISTORY).map(m => ({ role: m.role, content: m.content })),
-          { role: 'user', content: message }
-        ],
-        max_tokens: CHATBOT_CONFIG.maxTokens,
-        temperature: CHATBOT_CONFIG.temperature
-      };
+    const body = {
+      model: CHATBOT_CONFIG.model,
+      messages: [
+        { role: 'system', content: CHATBOT_CONFIG.systemPrompt },
+        ...chatHistory.slice(-MAX_HISTORY).map(m => ({ role: m.role, content: m.content })),
+        { role: 'user', content: message }
+      ],
+      max_tokens: CHATBOT_CONFIG.maxTokens,
+      temperature: CHATBOT_CONFIG.temperature
+    };
 
-      const headers = { 'Content-Type': 'application/json' };
-      // Only attach the token if we are using the secure route
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // NEW: Retry logic to wake up Render
+    let retries = 4; 
+    while (retries > 0) {
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(body)
+        });
+
+        if (res.status === 503 || res.status === 502 || res.status === 500) {
+          throw new Error(`Server waking up (${res.status})...`);
+        }
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const errorMsg = errData.error?.message || errData.error || `API returned ${res.status}`;
+          throw new Error(errorMsg);
+        }
+        
+        const data = await res.json();
+        if (data.choices && data.choices[0]) return data.choices[0].message.content;
+        if (data.content && data.content[0]) return data.content[0].text;
+        throw new Error('Unexpected API response format');
+
+      } catch (err) {
+        // If it's a network error or 503, wait and retry
+        if (err.message.includes('waking up') || err.message === 'Failed to fetch') {
+          retries--;
+          if (retries === 0) {
+            return `I'm having trouble connecting to the server. Please wait 30 seconds and try again.`;
+          }
+          // Show a toast and wait 5 seconds before trying again
+          showToast('Waking up server, retrying...', '');
+          await new Promise(r => setTimeout(r, 5000));
+        } else {
+          // If it's a different error (like 401 Unauthorized), don't retry, just fail
+          console.error('Chatbot API error:', err);
+          return `Error: ${err.message}`;
+        }
       }
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(body)
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        const errorMsg = errData.error?.message || errData.error || `API returned ${res.status}`;
-        throw new Error(errorMsg);
-      }
-      
-      const data = await res.json();
-
-      if (data.choices && data.choices[0]) return data.choices[0].message.content;
-      if (data.content && data.content[0]) return data.content[0].text;
-      throw new Error('Unexpected API response format');
-    } catch (err) {
-      console.error('Chatbot API error:', err);
-      return `Error: ${err.message}`; 
     }
   }
   return getFallbackResponse(message);
 }
-
+  
 function getFallbackResponse(input) {
   const t = input.toLowerCase();
   if (/^(hi|hello|hey|yo|sup|good (morning|afternoon|evening))\b/.test(t)) return "Hello — I'm a demo Relay agent. Ask me about **pricing**, **capabilities**, use cases, or the developer API.";
