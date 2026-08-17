@@ -1007,9 +1007,13 @@ const Auth = {
 };
 
 // --- API Helper ---
+// --- API Helper ---
 async function apiFetch(endpoint, method = 'GET', body = null) {
   const token = Auth.getToken();
-  if (!token) throw new Error('Not authenticated');
+  if (!token) {
+    Auth.logout();
+    throw new Error('Not authenticated');
+  }
   
   const headers = { 
     'Content-Type': 'application/json',
@@ -1021,6 +1025,17 @@ async function apiFetch(endpoint, method = 'GET', body = null) {
     headers,
     body: body ? JSON.stringify(body) : null
   });
+
+  // AUTOMATIC LOGOUT: If the backend says the token is invalid/expired, kick the user out
+  if (res.status === 401 || res.status === 403) {
+    const errData = await res.json().catch(() => ({}));
+    if (errData.error && errData.error.toLowerCase().includes('token')) {
+      Auth.logout();
+      navigate('login');
+      showToast('Your session has expired. Please log in again.', 'error');
+      throw new Error('Session expired');
+    }
+  }
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
