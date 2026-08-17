@@ -1006,9 +1006,8 @@ const Auth = {
   isLoggedIn() { return !!this.getToken(); }
 };
 
-// --- API Helper ---
-// --- API Helper ---
-async function apiFetch(endpoint, method = 'GET', body = null) {
+// --- API Helper (Patience version for Render Free Tier) ---
+async function apiFetch(endpoint, method = 'GET', body = null, retries = 6) {
   const token = Auth.getToken();
   if (!token) {
     Auth.logout();
@@ -1020,28 +1019,49 @@ async function apiFetch(endpoint, method = 'GET', body = null) {
     'Authorization': `Bearer ${token}` 
   };
   
-  const res = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : null
-  });
+  try {
+    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : null
+    });
 
-  // AUTOMATIC LOGOUT: If the backend says the token is invalid/expired, kick the user out
-  if (res.status === 401 || res.status === 403) {
-    const errData = await res.json().catch(() => ({}));
-    if (errData.error && errData.error.toLowerCase().includes('token')) {
-      Auth.logout();
-      navigate('login');
-      showToast('Your session has expired. Please log in again.', 'error');
-      throw new Error('Session expired');
+    // Handle 503 (Server waking up) or 502
+    if (res.status === 503 || res.status === 502) {
+      if (retries > 0) {
+        showToast('Waking up server, this may take a few seconds...', '');
+        await new Promise(r => setTimeout(r, 5000)); // Wait 5 seconds
+        return apiFetch(endpoint, method, body, retries - 1); // Try again!
+      }
+      throw new Error('Server is still waking up. Please wait 30 seconds and refresh the page.');
     }
-  }
 
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.error || 'API request failed');
+    // Handle Expired Token
+    if (res.status === 401 || res.status === 403) {
+      const errData = await res.json().catch(() => ({}));
+      if (errData.error && errData.error.toLowerCase().includes('token')) {
+        Auth.logout();
+        navigate('login');
+        showToast('Your session has expired. Please log in again.', 'error');
+        throw new Error('Session expired');
+      }
+    }
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'API request failed');
+    }
+    return res.json();
+
+  } catch (err) {
+    // Catch network errors (Render hasn't responded at all yet)
+    if (err.message === 'Failed to fetch' && retries > 0) {
+      showToast('Waking up server, this may take a few seconds...', '');
+      await new Promise(r => setTimeout(r, 5000));
+      return apiFetch(endpoint, method, body, retries - 1);
+    }
+    throw err;
   }
-  return res.json();
 }
 
 // ROUTER
