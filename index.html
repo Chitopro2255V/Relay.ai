@@ -1570,6 +1570,95 @@ function showPanel(name) {
   document.getElementById('appSidebar').classList.remove('open');
   document.getElementById('sidebarOverlay').classList.remove('show');
   window.scrollTo(0, 0);
+
+  if (name === 'overview') { setTimeout(loadAnalytics, 100); }
+  if (name === 'analytics') { setTimeout(loadAnalytics, 100); setTimeout(animateChartLines, 200); }
+  if (name === 'builder') { setTimeout(initBuilder, 100); }
+  if (name === 'bots') { setTimeout(loadBots, 100); }
+  if (name === 'conversations') { setTimeout(loadConversations, 100); }
+  if (name === 'integrations') { setTimeout(loadIntegrations, 100); }
+  
+  document.getElementById('appSidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+  window.scrollTo(0, 0);
+}
+
+// --- NEW: Analytics Loader ---
+async function loadAnalytics() {
+  try {
+    const data = await apiFetch('/api/analytics', 'GET');
+    // Update the numbers on the dashboard
+    document.querySelectorAll('.dash-stat-num').forEach((el, i) => {
+      if (i === 0) el.textContent = data.activeBots;
+      if (i === 1) el.textContent = data.conversationsToday.toLocaleString();
+      if (i === 2) el.textContent = data.resolutionRate + '%';
+      if (i === 3) el.textContent = data.sentimentScore;
+    });
+  } catch (err) {
+    console.error('Analytics error:', err);
+  }
+}
+
+// --- NEW: Conversations Loader ---
+async function loadConversations() {
+  const listContainer = document.querySelector('#panel-conversations .conv-list');
+  if (!listContainer) return;
+  listContainer.innerHTML = '<div style="color: var(--text-mute); padding: 1rem;">Loading conversations...</div>';
+  
+  try {
+    const convos = await apiFetch('/api/conversations', 'GET');
+    if (convos.length === 0) {
+      listContainer.innerHTML = '<div style="color: var(--text-mute); padding: 1rem;">No conversations yet. They will appear here when your bots talk to users.</div>';
+      return;
+    }
+    
+    listContainer.innerHTML = convos.map(c => `
+      <div class="conv-card">
+        <div>
+          <div class="conv-card-head"><span class="conv-card-name">${c.user_name}</span><span class="conv-card-time">${new Date(c.created_at).toLocaleString()}</span></div>
+          <div class="conv-card-preview">${c.preview}</div>
+          <div class="conv-card-tags"><span class="conv-tag ${c.status}">${c.status}</span></div>
+        </div>
+        <button class="btn btn-sm">View →</button>
+      </div>
+    `).join('');
+  } catch (err) {
+    listContainer.innerHTML = `<div style="color: var(--error); padding: 1rem;">${err.message}</div>`;
+  }
+}
+
+// --- NEW: Integrations Loader ---
+async function loadIntegrations() {
+  try {
+    const data = await apiFetch('/api/integrations/webhook', 'GET');
+    const webhookInput = document.querySelector('#panel-integrations code');
+    if (webhookInput) webhookInput.textContent = data.url;
+  } catch (err) {
+    console.error('Integrations error:', err);
+  }
+}
+
+// --- NEW: API Key Regenerator ---
+async function regenerateApiKey() {
+  if (!confirm('Are you sure? Your old API key will stop working immediately.')) return;
+  showToast('Regenerating API key...', '');
+  
+  try {
+    const data = await apiFetch('/api/settings/apikey', 'PUT');
+    // Update the UI
+    const display = document.getElementById('apiKeyDisplay');
+    if (display) display.textContent = data.apiKey.substring(0, 8) + '••••••••••••' + data.apiKey.substring(data.apiKey.length - 4);
+    
+    // Update Local Storage
+    const session = Auth.getSession();
+    session.apiKey = data.apiKey;
+    localStorage.setItem('relay_session', JSON.stringify(session));
+    
+    showToast('API key regenerated successfully!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
 }
 
 // --- NEW: Function to load bots from backend ---
